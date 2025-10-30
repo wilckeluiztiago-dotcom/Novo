@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Qui-Quadrado Sociológico — Independência & Ajuste | Autor: Luiz Tiago Wilcke (LT)</title>
+
+<!-- MathJax v3 para renderizar as equações -->
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+<style>
+:root{
+  --bg:#0b0e17; --panel:#111827; --ink:#eaf2ff; --mut:#9fb0c9;
+  --ac:#7fffd4; --ac2:#57d6ff; --ok:#34d399; --warn:#f59e0b; --bad:#ef4444; --grid:#1f2937;
+  --chip:#0f172a; --chipb:#0b1220;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:
+    radial-gradient(1200px 800px at 50% 60%, #121a2d 0%, #0b0e17 60%, #070a12 100%);
+  color:var(--ink); font:14px/1.5 system-ui, Segoe UI, Roboto, Ubuntu, Arial;
+}
+header{
+  padding:22px 18px; display:flex; gap:14px; align-items:center; justify-content:space-between;
+  border-bottom:1px solid #1b2436; backdrop-filter: blur(4px);
+}
+.brand{display:flex; align-items:center; gap:12px}
+.logo{
+  width:42px; height:42px; border-radius:14px;
+  background:linear-gradient(145deg, var(--ac2), var(--ac));
+  box-shadow: 0 0 22px rgba(127,255,212,.25), inset 0 0 18px rgba(87,214,255,.3);
+}
+h1{font-size:18px; margin:0; letter-spacing:.2px}
+.tagline{color:var(--mut); font-size:12px}
+header .actions{display:flex; gap:8px; align-items:center}
+button, .btn{
+  background:linear-gradient(180deg, #172033, #0f1626);
+  color:var(--ink); border:1px solid #26324a; border-radius:12px; padding:10px 14px;
+  cursor:pointer; font-weight:600; transition:.2s transform,.2s box-shadow,.2s background;
+}
+button:hover,.btn:hover{transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,0,0,.35)}
+button.primario{border-color:#2d8f8a; background:linear-gradient(180deg,#12343a,#0e2226)}
+button.destroi{border-color:#5b1f25; background:linear-gradient(180deg,#251116,#17090c)}
+small.helper{color:var(--mut)}
+main{max-width:1200px; margin:26px auto; padding:0 16px; display:grid; gap:16px}
+
+.tabs{display:flex; gap:8px; flex-wrap:wrap}
+.tab{
+  padding:10px 12px; border-radius:12px; background:linear-gradient(180deg,#0d1424,#0b1220);
+  border:1px solid #26324a; cursor:pointer; user-select:none; font-weight:700; color:var(--mut)
+}
+.tab.ativa{color:var(--ink); border-color:#2d8f8a; box-shadow:0 0 0 1px #2d8f8a inset}
+.paineis{display:grid; gap:16px}
+.card{
+  background:linear-gradient(180deg, #0e1527, #0a1120);
+  border:1px solid #1f2b43; border-radius:18px; padding:16px;
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+}
+.card h2{margin:0 0 10px; font-size:16px; color:var(--ac)}
+.grid{
+  display:grid; gap:12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px,1fr));
+  align-items:start;
+}
+fieldset{
+  border:1px dashed #26324a; border-radius:14px; padding:12px;
+}
+legend{padding:0 8px; color:var(--mut)}
+label{display:block; font-weight:600; margin-bottom:8px}
+input[type="number"], input[type="text"]{
+  width:100%; background:#0c1323; color:var(--ink);
+  border:1px solid #27324a; border-radius:10px; padding:10px; outline:none;
+}
+input[type="number"]:focus{border-color:#2d8f8a}
+.controles{display:flex; flex-wrap:wrap; gap:8px}
+.kbd{padding:6px 8px; border-radius:10px; background:#0f172a; border:1px solid #22304a; color:#cfe7ff; font-weight:700}
+
+.tabela-wrap{overflow:auto; border-radius:12px; border:1px solid #1e2a41}
+table{border-collapse:separate; border-spacing:0; width:100%; min-width:520px}
+th,td{padding:10px 12px; border-bottom:1px solid #1e2a41; text-align:right}
+th:first-child, td:first-child{text-align:left}
+thead th{position:sticky; top:0; background:#0d1424; z-index:1}
+tbody tr:hover td{background:#0c1426}
+.celula{width:90px}
+
+.badge{display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #22304a; background:var(--chip)}
+.badge.ok{border-color:#1f513e; background:#0c1f1a; color:#a8f5c3}
+.badge.warn{border-color:#684b1b; background:#22160a; color:#f9ce8f}
+.badge.bad{border-color:#6a1f24; background:#2a0e11; color:#ffb2b8}
+
+.resultados{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.kpi{
+  background:linear-gradient(180deg,#0c162d,#0a1222);
+  border:1px solid #1e2a41; border-radius:14px; padding:12px;
+}
+.kpi .valor{font-size:22px; font-weight:800}
+.kpi .rotulo{color:var(--mut); font-size:12px}
+.residuos{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+footer{opacity:.8; color:var(--mut); text-align:center; padding:20px}
+
+hr.sep{border:0; height:1px; background:linear-gradient(90deg,transparent,#1f2b43,transparent); margin:12px 0}
+
+.code{
+  background:#0b1220; border:1px solid #1e2a41; border-radius:12px; padding:12px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow:auto
+}
+.alert{padding:10px 12px; border-radius:10px; border:1px solid #344; background:#0e1a26}
+.alert strong{color:var(--ac2)}
+.copy{cursor:pointer; padding:4px 8px; border-radius:8px; border:1px solid #2a3b5f; background:#0c1323; margin-left:8px}
+@media (max-width:680px){
+  .tabela-wrap{min-width:unset}
+  table{min-width:420px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>Qui-Quadrado Sociológico — LT</h1>
+      <div class="tagline">Independência (R×C) · Ajuste (GOF) · Resíduos · V de Cramér</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnExemplo">Carregar exemplo</button>
+    <button class="btn destroi" id="btnLimpar">Limpar tudo</button>
+  </div>
+</header>
+
+<main>
+  <!-- Abas -->
+  <div class="tabs">
+    <div class="tab ativa" data-alvo="painel-ind">Independência (R×C)</div>
+    <div class="tab" data-alvo="painel-gof">Ajuste (Goodness-of-Fit)</div>
+    <div class="tab" data-alvo="painel-teoria">Fórmulas</div>
+  </div>
+
+  <div class="paineis">
+    <!-- Painel Independência -->
+    <section id="painel-ind" class="card">
+      <h2>Teste de Independência — Tabela de Contingência R×C</h2>
+
+      <div class="grid">
+        <fieldset>
+          <legend>Dimensões da tabela</legend>
+          <label>Linhas (R)
+            <input type="number" id="linhas" min="2" max="12" value="3">
+          </label>
+          <label>Colunas (C)
+            <input type="number" id="colunas" min="2" max="12" value="3">
+          </label>
+          <div class="controles">
+            <button class="btn" id="btnRedesenhar">Redesenhar tabela</button>
+            <button class="btn" id="btnZerarTabela">Zerar células</button>
+          </div>
+          <small class="helper">Edite as contagens observadas diretamente na tabela abaixo.</small>
+        </fieldset>
+
+        <fieldset>
+          <legend>Configurações</legend>
+          <label>Rótulos das linhas (separe por vírgula)
+            <input type="text" id="rotulosLinhas" placeholder="Ex.: Baixa, Média, Alta">
+          </label>
+          <label>Rótulos das colunas (separe por vírgula)
+            <input type="text" id="rotulosColunas" placeholder="Ex.: A, B, C">
+          </label>
+          <div class="controles">
+            <button class="btn primario" id="btnCalcularInd">Calcular \(\chi^2\)</button>
+            <button class="btn" id="btnCopiarJSON">Copiar resultado (JSON)</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="tabela-wrap" id="wrapTabela"></div>
+
+      <hr class="sep"/>
+
+      <div class="grid">
+        <div>
+          <div class="resultados" id="kpisInd"></div>
+          <div id="avisosInd"></div>
+        </div>
+        <div>
+          <div class="card residuos">
+            <strong>Resíduos padronizados</strong>
+            <div id="residuosInd" class="tabela-wrap" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Painel GOF -->
+    <section id="painel-gof" class="card" style="display:none">
+      <h2>Teste de Ajuste (Goodness-of-Fit)</h2>
+      <div class="grid">
+        <fieldset>
+          <legend>Dados</legend>
+          <label>Categorias (rótulos, separados por vírgula)
+            <input type="text" id="rotulosGOF" placeholder="Ex.: A, B, C, D">
+          </label>
+          <label>Observados (separados por vírgula)
+            <input type="text" id="obsGOF" placeholder="Ex.: 20, 15, 30, 10">
+          </label>
+          <label>Probabilidades teóricas (opcional, vírgulas). Se vazio, usa uniformes.
+            <input type="text" id="probsGOF" placeholder="Ex.: 0.1, 0.2, 0.5, 0.2">
+          </label>
+          <div class="controles">
+            <button class="btn primario" id="btnCalcularGOF">Calcular \(\chi^2\)</button>
+            <button class="btn" id="btnCopiarJSONgof">Copiar resultado (JSON)</button>
+          </div>
+        </fieldset>
+
+        <div class="card">
+          <strong>Resultados</strong>
+          <div class="resultados" id="kpisGOF" style="margin-top:8px"></div>
+          <div id="avisosGOF"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Painel Teoria -->
+    <section id="painel-teoria" class="card" style="display:none">
+      <h2>Fórmulas e Interpretação</h2>
+      <div class="alert">
+        <p><strong>Estatística:</strong> \[
+          \chi^2 \;=\; \sum_{i=1}^{R}\sum_{j=1}^{C}\frac{(O_{ij}-E_{ij})^2}{E_{ij}},\qquad
+          E_{ij}=\frac{(\text{total da linha } i)(\text{total da coluna } j)}{n}
+        \]</p>
+        <p><strong>Graus de liberdade (independência):</strong> \(\ (R-1)(C-1)\ \).</p>
+        <p><strong>V de Cramér:</strong> \[
+          V \;=\; \sqrt{\frac{\chi^2}{n \cdot \min(R-1,\; C-1)}}
+        \]
+        Em tabelas 2×2, \(V\) coincide com \(\phi\).</p>
+        <p><strong>Goodness-of-Fit (GOF):</strong> \[
+          \chi^2 \;=\; \sum_{k=1}^{K}\frac{(O_k - E_k)^2}{E_k},\qquad
+          E_k = n \cdot p_k,\quad \text{gl}=K-1
+        \]</p>
+        <p><strong>Valor-p:</strong> \(p = 1 - F_{\chi^2}(\chi^2;\ \text{gl})\), onde \(F_{\chi^2}\) é a CDF da \(\chi^2\).</p>
+        <p><em>Pressupostos:</em> recomenda-se \(E_{ij}\ge 5\) para a maioria das células.</p>
+      </div>
+      <div class="code"><strong>Leituras sociológicas (ideias de aplicação):</strong>
+• Associação entre <em>escolaridade</em> (Baixa/Média/Alta) e <em>preferência partidária</em> (A/B/C). 
+• Associação entre <em>faixa etária</em> e <em>participação em movimentos sociais</em> (Sim/Não).
+• GOF para verificar se a <em>distribuição observada</em> de tipos de emprego (formal/informal/autônomo) segue uma proporção teórica (políticas públicas, meta de programa, etc.).</div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div>Autor: Luiz Tiago Wilcke (LT) · Design e código por LT-style · <span class="badge">Qui-Quadrado Avançado</span></div>
+</footer>
+
+<script>
+/* =========================
+ * Utilidades matemáticas
+ * ========================= */
+// Funções gama incompleta regularizada (para CDF do qui-quadrado)
+// Base: aproximações clássicas (NR). Cuidadosamente implementadas para boa precisão.
+function gammaln(z){
+  // log Gamma (Lanczos)
+  const cof=[76.18009172947146,-86.50532032941677,24.01409824083091,
+             -1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  let x=z, y=z, tmp=x+5.5; tmp -= (x+0.5)*Math.log(tmp);
+  let ser=1.000000000190015;
+  for(let j=0;j<6;j++){ y+=1; ser+=cof[j]/y; }
+  return Math.log(2.5066282746310005*ser/x)-tmp;
+}
+function gammap(a,x){
+  // P(a,x) lower regularized gamma
+  if(x<=0) return 0;
+  if(x<a+1){
+    // série
+    let ap=a, sum=1/a, del=sum;
+    for(let n=1;n<=100;n++){
+      ap+=1; del*=x/ap; sum+=del;
+      if(Math.abs(del)<Math.abs(sum)*1e-14) break;
+    }
+    return sum*Math.exp(-x + a*Math.log(x) - gammaln(a));
+  }else{
+    // fração contínua Q(a,x) -> P = 1-Q
+    let b=x+1-a, c=1/1e-30, d=1/b, h=d;
+    for(let i=1;i<=100;i++){
+      let an = -i*(i-a);
+      b += 2;
+      d = an*d + b; if(Math.abs(d)<1e-30) d=1e-30;
+      c = b + an/c; if(Math.abs(c)<1e-30) c=1e-30;
+      d = 1/d;
+      const del = d*c;
+      h *= del;
+      if(Math.abs(del-1.0)<1e-14) break;
+    }
+    const Q = Math.exp(-x + a*Math.log(x) - gammaln(a))*h;
+    return 1-Q;
+  }
+}
+function cdf_chi2(x, gl){
+  // F_X(x) para qui-quadrado com gl=k => P(k/2, x/2)
+  return gammap(gl/2, x/2);
+}
+function p_valor_chi2(x, gl){
+  // p = 1 - F_X(x)
+  const F = cdf_chi2(x, gl);
+  return Math.max(0, Math.min(1, 1 - F));
+}
+
+/* =========================
+ * DOM helpers
+ * ========================= */
+const qs = sel => document.querySelector(sel);
+const qsa = sel => Array.from(document.querySelectorAll(sel));
+
+function numero(x){
+  const v = (""+x).replace(",",".").trim();
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+function soma(arr){ return arr.reduce((a,b)=>a+b,0); }
+function format(x, d=6){
+  if(!Number.isFinite(x)) return "—";
+  // Notação amigável
+  if(Math.abs(x)>=1e6 || (Math.abs(x)>0 && Math.abs(x)<1e-4)) return x.toExponential(2);
+  return Number(x.toFixed(d)).toString();
+}
+
+function geraTabela(r,c, rotLin=[], rotCol=[]){
+  const wrap = qs("#wrapTabela");
+  const thead = `
+    <thead>
+      <tr>
+        <th class="celula">Categoria</th>
+        ${Array.from({length:c},(_,j)=>`<th contenteditable data-rot-col="${j}">${rotCol[j]??("C"+(j+1))}</th>`).join("")}
+        <th>Total</th>
+      </tr>
+    </thead>`;
+  const tbody = `
+    <tbody>
+      ${Array.from({length:r},(_,i)=>`
+        <tr>
+          <th contenteditable data-rot-lin="${i}">${rotLin[i]??("L"+(i+1))}</th>
+          ${Array.from({length:c},(_,j)=>`<td><input class="celula" inputmode="numeric" value="0" data-i="${i}" data-j="${j}"></td>`).join("")}
+          <td class="total-linha">0</td>
+        </tr>`).join("")}
+      <tr>
+        <th>Total</th>
+        ${Array.from({length:c},(_,j)=>`<td class="total-coluna" data-j="${j}">0</td>`).join("")}
+        <td class="total-geral">0</td>
+      </tr>
+    </tbody>`;
+  wrap.innerHTML = `<div class="tabela-wrap"><table id="tabela">${thead}${tbody}</table></div>`;
+  qsa('#tabela input.celula').forEach(inp=>inp.addEventListener('input', atualizaTotais));
+  // Permitir editar rótulos
+  qsa("[data-rot-lin]").forEach(th=>th.addEventListener('input', ()=>{
+    // sincroniza com campo de texto
+    const rls = qsa("[data-rot-lin]").map(x=>x.textContent.trim()).join(", ");
+    qs("#rotulosLinhas").value = rls;
+  }));
+  qsa("[data-rot-col]").forEach(th=>th.addEventListener('input', ()=>{
+    const rcs = qsa("[data-rot-col]").map(x=>x.textContent.trim()).join(", ");
+    qs("#rotulosColunas").value = rcs;
+  }));
+  atualizaTotais();
+}
+function atualizaTotais(){
+  const tabela = qs("#tabela");
+  if(!tabela) return;
+  const linhas = tabela.querySelectorAll("tbody tr");
+  const r = linhas.length-1; // última é a de totais
+  const c = tabela.querySelectorAll("thead th").length - 2; // remove "Categoria" e "Total"
+
+  // somar linhas
+  for(let i=0;i<r;i++){
+    const inputs = linhas[i].querySelectorAll("input.celula");
+    let s=0;
+    inputs.forEach(inp=>{ s+=numero(inp.value) });
+    linhas[i].querySelector(".total-linha").textContent = s;
+  }
+  // somar colunas
+  for(let j=0;j<c;j++){
+    let s=0;
+    for(let i=0;i<r;i++){
+      const inp = qs(`#tabela input[data-i="${i}"][data-j="${j}"]`);
+      s += numero(inp.value);
+    }
+    qs(`#tabela .total-coluna[data-j="${j}"]`).textContent = s;
+  }
+  // total geral
+  const totCols = qsa("#tabela .total-coluna").map(td=>numero(td.textContent));
+  const n = soma(totCols);
+  qs("#tabela .total-geral").textContent = n;
+}
+
+/* =========================
+ * Cálculo Independência
+ * ========================= */
+function obterMatriz(){
+  const tabela = qs("#tabela"); if(!tabela) return null;
+  const linhas = tabela.querySelectorAll("tbody tr");
+  const r = linhas.length-1, c = tabela.querySelectorAll("thead th").length - 2;
+  const O = Array.from({length:r}, ()=>Array(c).fill(0));
+  for(let i=0;i<r;i++){
+    for(let j=0;j<c;j++){
+      const v = numero(qs(`#tabela input[data-i="${i}"][data-j="${j}"]`).value);
+      if(v<0){ throw new Error("Há contagem negativa; verifique os dados."); }
+      O[i][j]=v;
+    }
+  }
+  return O;
+}
+function somaLinha(M,i){ return M[i].reduce((a,b)=>a+b,0); }
+function somaColuna(M,j){ return M.reduce((a,linha)=>a+linha[j],0); }
+function total(M){ return M.flat().reduce((a,b)=>a+b,0); }
+
+function calcularIndependencia(){
+  const O = obterMatriz(); if(!O) return;
+  const r=O.length, c=O[0].length, n=total(O);
+  if(n<=0) throw new Error("Total da tabela é zero. Insira contagens positivas.");
+
+  // Esperados
+  const totaisLinha = Array.from({length:r},(_,i)=>somaLinha(O,i));
+  const totaisCol  = Array.from({length:c},(_,j)=>somaColuna(O,j));
+  const E = Array.from({length:r},()=>Array(c).fill(0));
+  for(let i=0;i<r;i++){
+    for(let j=0;j<c;j++){
+      E[i][j] = (totaisLinha[i]*totaisCol[j])/n;
+    }
+  }
+  // Qui-quadrado e resíduos padronizados
+  let chi2=0;
+  const R = Array.from({length:r},()=>Array(c).fill(0)); // resíduos padronizados
+  let celulasPequenas=0, celulasMuitoPequenas=0;
+  for(let i=0;i<r;i++){
+    for(let j=0;j<c;j++){
+      const e = E[i][j];
+      if(e<5) celulasPequenas++;
+      if(e<1) celulasMuitoPequenas++;
+      const o = O[i][j];
+      const dif = o - e;
+      chi2 += (dif*dif)/(e>0?e:1e-12);
+      R[i][j] = (e>0) ? (dif/Math.sqrt(e)) : 0;
+    }
+  }
+  const gl = (r-1)*(c-1);
+  const p = p_valor_chi2(chi2, gl);
+  const k = Math.min(r-1, c-1);
+  const cramerv = (k>0) ? Math.sqrt(chi2/(n*k)) : 0;
+  const phi = (r===2 && c===2) ? Math.sqrt(chi2/n) : null;
+
+  return {O,E,R,chi2,gl,p,n,cramerv,phi, celulasPequenas, celulasMuitoPequenas, r, c};
+}
+
+function renderKPIInd(res){
+  const kpis = qs("#kpisInd");
+  const avisos = qs("#avisosInd");
+  kpis.innerHTML = `
+    <div class="kpi"><div class="rotulo">Qui-Quadrado (χ²)</div><div class="valor">${format(res.chi2,4)}</div></div>
+    <div class="kpi"><div class="rotulo">gl</div><div class="valor">${res.gl}</div></div>
+    <div class="kpi"><div class="rotulo">valor-p</div><div class="valor">${format(res.p,6)}</div></div>
+    <div class="kpi"><div class="rotulo">n</div><div class="valor">${res.n}</div></div>
+    <div class="kpi"><div class="rotulo">V de Cramér</div><div class="valor">${format(res.cramerv,4)}</div></div>
+    ${res.phi!==null ? `<div class="kpi"><div class="rotulo">Phi (2×2)</div><div class="valor">${format(res.phi,4)}</div></div>` : ""}
+  `;
+  let mensagens = [];
+  if(res.celulasMuitoPequenas>0) mensagens.push(`<span class="badge bad">Há ${res.celulasMuitoPequenas} célula(s) com esperado &lt; 1</span>`);
+  if(res.celulasPequenas>0) mensagens.push(`<span class="badge warn">${res.celulasPequenas} célula(s) com esperado &lt; 5 — cuidado com o qui-quadrado assintótico</span>`);
+  if(mensagens.length===0) mensagens.push(`<span class="badge ok">Pressupostos atendidos (regra prática)</span>`);
+  avisos.innerHTML = `<div class="alert">${mensagens.join(" · ")}</div>`;
+}
+
+function renderResiduos(res){
+  const {R, O, E, r, c} = res;
+  let html = `<table><thead><tr><th>Cel</th>${Array.from({length:c},(_,j)=>`<th>Col ${j+1}</th>`).join("")}</tr></thead><tbody>`;
+  for(let i=0;i<r;i++){
+    html += `<tr><th>Linha ${i+1}</th>`;
+    for(let j=0;j<c;j++){
+      const rpad = R[i][j];
+      const cls = (rpad>2)?'badge bad':(rpad<-2)?'badge bad':'badge';
+      html += `<td title="O=${format(O[i][j],0)} | E=${format(E[i][j],3)} | R=${format(rpad,3)}">
+        <span class="${cls}">${format(rpad,3)}</span></td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  qs("#residuosInd").innerHTML = html;
+}
+
+/* =========================
+ * Cálculo GOF
+ * ========================= */
+function calcularGOF(){
+  const rot = qs("#rotulosGOF").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const obs = qs("#obsGOF").value.split(",").map(s=>numero(s));
+  if(rot.length===0 || rot.length!==obs.length) throw new Error("Categorias e observados devem ter mesmo comprimento, e não vazios.");
+  const n = soma(obs);
+  if(n<=0) throw new Error("Soma dos observados é zero. Insira contagens positivas.");
+  let probs = qs("#probsGOF").value.split(",").map(s=>s.trim()).filter(Boolean).map(numero);
+  if(probs.length===0){
+    probs = Array(rot.length).fill(1/rot.length);
+  }else{
+    const sp = soma(probs);
+    if(Math.abs(sp-1)>1e-9) probs = probs.map(p=>p/sp); // normaliza
+  }
+  if(probs.length!==rot.length) throw new Error("Número de probabilidades teóricas deve corresponder ao de categorias.");
+  const E = probs.map(p=>p*n);
+  let chi2=0, celulasPequenas=0, celulasMuitoPequenas=0;
+  for(let k=0;k<rot.length;k++){
+    if(E[k]<5) celulasPequenas++;
+    if(E[k]<1) celulasMuitoPequenas++;
+    chi2 += ( (obs[k]-E[k])**2 ) / (E[k]>0?E[k]:1e-12);
+  }
+  const gl = rot.length-1;
+  const p = p_valor_chi2(chi2, gl);
+  return {rot, obs, E, n, chi2, gl, p, celulasPequenas, celulasMuitoPequenas};
+}
+
+function renderKPIGOF(res){
+  const kpis = qs("#kpisGOF");
+  const avisos = qs("#avisosGOF");
+  kpis.innerHTML = `
+    <div class="kpi"><div class="rotulo">Qui-Quadrado (χ²)</div><div class="valor">${format(res.chi2,4)}</div></div>
+    <div class="kpi"><div class="rotulo">gl</div><div class="valor">${res.gl}</div></div>
+    <div class="kpi"><div class="rotulo">valor-p</div><div class="valor">${format(res.p,6)}</div></div>
+    <div class="kpi"><div class="rotulo">n</div><div class="valor">${res.n}</div></div>
+  `;
+  let mensagens = [];
+  if(res.celulasMuitoPequenas>0) mensagens.push(`<span class="badge bad">Há ${res.celulasMuitoPequenas} célula(s) com esperado &lt; 1</span>`);
+  if(res.celulasPequenas>0) mensagens.push(`<span class="badge warn">${res.celulasPequenas} célula(s) com esperado &lt; 5 — cuidado</span>`);
+  if(mensagens.length===0) mensagens.push(`<span class="badge ok">Pressupostos atendidos (regra prática)</span>`);
+  avisos.innerHTML = `<div class="alert">${mensagens.join(" · ")}</div>`;
+}
+
+/* =========================
+ * Eventos e UI
+ * ========================= */
+function redesenhar(){
+  const r = Math.max(2, Math.min(12, numero(qs("#linhas").value)));
+  const c = Math.max(2, Math.min(12, numero(qs("#colunas").value)));
+  const rotLin = qs("#rotulosLinhas").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const rotCol = qs("#rotulosColunas").value.split(",").map(s=>s.trim()).filter(Boolean);
+  geraTabela(r,c, rotLin, rotCol);
+  MathJax.typesetPromise?.(); // re-render fórmulas se necessário
+}
+
+qs("#btnRedesenhar").addEventListener("click", redesenhar);
+qs("#btnZerarTabela").addEventListener("click", ()=>{
+  qsa("#tabela input.celula").forEach(inp=>inp.value=0);
+  atualizaTotais();
+});
+qs("#btnCalcularInd").addEventListener("click", ()=>{
+  try{
+    const res = calcularIndependencia();
+    renderKPIInd(res);
+    renderResiduos(res);
+    window._ultimoInd = res;
+  }catch(err){
+    alert("Erro: "+err.message);
+  }
+});
+qs("#btnCalcularGOF").addEventListener("click", ()=>{
+  try{
+    const res = calcularGOF();
+    renderKPIGOF(res);
+    window._ultimoGOF = res;
+  }catch(err){
+    alert("Erro: "+err.message);
+  }
+});
+qs("#btnCopiarJSON").addEventListener("click", ()=>{
+  if(!window._ultimoInd){ alert("Calcule primeiro."); return; }
+  const dados = JSON.stringify(window._ultimoInd, null, 2);
+  navigator.clipboard.writeText(dados);
+  alert("Resultado (Independência) copiado como JSON.");
+});
+qs("#btnCopiarJSONgof").addEventListener("click", ()=>{
+  if(!window._ultimoGOF){ alert("Calcule primeiro."); return; }
+  const dados = JSON.stringify(window._ultimoGOF, null, 2);
+  navigator.clipboard.writeText(dados);
+  alert("Resultado (GOF) copiado como JSON.");
+});
+
+// Abas
+qsa(".tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    qsa(".tab").forEach(t=>t.classList.remove("ativa"));
+    tab.classList.add("ativa");
+    const alvo = tab.dataset.alvo;
+    qsa("main section.card").forEach(sec=>sec.style.display = (sec.id===alvo)?"block":"none");
+    MathJax.typesetPromise?.();
+  });
+});
+
+// Exemplo sociológico (Escolaridade × Preferência Partidária)
+qs("#btnExemplo").addEventListener("click", ()=>{
+  qs("#linhas").value = 3; qs("#colunas").value = 3;
+  qs("#rotulosLinhas").value = "Baixa, Média, Alta";
+  qs("#rotulosColunas").value = "Partido A, Partido B, Partido C";
+  redesenhar();
+  // valores fictícios
+  const vals = [
+    [48, 22, 10],
+    [30, 40, 15],
+    [12, 36, 35]
+  ];
+  for(let i=0;i<3;i++)
+    for(let j=0;j<3;j++)
+      qs(`#tabela input[data-i="${i}"][data-j="${j}"]`).value = vals[i][j];
+  atualizaTotais();
+});
+
+// Limpar
+qs("#btnLimpar").addEventListener("click", ()=>{
+  qs("#rotulosLinhas").value="";
+  qs("#rotulosColunas").value="";
+  qs("#rotulosGOF").value="";
+  qs("#obsGOF").value="";
+  qs("#probsGOF").value="";
+  redesenhar();
+  qs("#kpisInd").innerHTML="";
+  qs("#residuosInd").innerHTML="";
+  qs("#avisosInd").innerHTML="";
+  qs("#kpisGOF").innerHTML="";
+  qs("#avisosGOF").innerHTML="";
+});
+
+// Inicializar uma tabela 3x3
+geraTabela(3,3);
+</script>
+</body>
+</html>

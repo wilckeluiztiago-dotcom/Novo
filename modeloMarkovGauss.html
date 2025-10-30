@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Modelo Linear de Gauss–Markov — Calculadora OLS | Autor: Luiz Tiago Wilcke (LT)</title>
+
+<!-- Polyfills (ok manter) -->
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+
+<!-- 1) Configuração do MathJax deve vir ANTES do script principal -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[','\\]'], ['$$','$$']],
+      processEscapes: true
+    },
+    options: {
+      // garanta que só pule <script>, <noscript>, <style>, <textarea>, <pre>, <code>
+      skipHtmlTags: ['script','noscript','style','textarea','pre','code']
+    },
+    startup: {
+      typeset: false, // vamos chamar manualmente quando precisarmos
+      ready: () => {
+        MathJax.startup.defaultReady();
+        // se algo ficou pendurado para tipografar antes do carregamento:
+        if (window._pendingTypeset) {
+          const jobs = window._pendingTypeset;
+          window._pendingTypeset = [];
+          Promise.all(jobs.map(fn => fn())).catch(()=>{});
+        }
+      }
+    }
+  };
+</script>
+
+<!-- 2) Script principal do MathJax -->
+<script id="MathJax-script" defer
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+<style>
+:root{
+  --bg:#0b0c10; --panel:#11141c; --ink:#eaf2ff; --mut:#9fb0c9;
+  --ac:#7fffd4; --ac2:#57d6ff; --ok:#34d399; --warn:#f59e0b; --bad:#ef4444; --grid:#1c2333;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:radial-gradient(1200px 700px at 50% 60%, #0f1322 0%, #0b0c10 60%, #05070b 100%);
+  color:var(--ink); font:15px/1.55 system-ui,Segoe UI,Roboto,Ubuntu,Arial;
+}
+.container{max-width:1100px; margin:28px auto; padding:0 18px}
+h1,h2,h3{color:var(--ac); margin:8px 0 10px}
+.card{
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.0));
+  border:1px solid #1e2744; border-radius:16px; padding:18px; margin:14px 0; box-shadow:0 10px 30px rgba(0,0,0,0.25)
+}
+.grid{display:grid; gap:16px}
+.grid-2{grid-template-columns:1fr 1fr}
+@media (max-width:900px){.grid-2{grid-template-columns:1fr}}
+label{display:block; color:var(--mut); margin:10px 0 6px}
+textarea,input,select{
+  width:100%; background:#0f1526; color:var(--ink);
+  border:1px solid #263251; border-radius:10px; padding:10px 12px; outline:none
+}
+textarea{min-height:160px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:13px}
+button{
+  background:linear-gradient(180deg, var(--ac2), #3aa9d8);
+  color:#021018; border:0; border-radius:12px; padding:10px 14px; font-weight:600; cursor:pointer
+}
+button.secondary{background:#1a233b; color:var(--ink); border:1px solid #2a3a64}
+.kbd{font:12px ui-monospace,monospace; background:#0d1422; border:1px solid #2a375c; border-radius:6px; padding:2px 6px}
+.table-wrap{overflow:auto; border:1px solid #223156; border-radius:10px}
+table{border-collapse:collapse; width:100%}
+th,td{border-bottom:1px solid #1f2b4a; padding:8px 10px; text-align:right}
+th{color:#b9c7e6; background:#0d1422; position:sticky; top:0}
+td:first-child,th:first-child{text-align:left}
+.bad{color:var(--bad)} .ok{color:var(--ok)} .warn{color:var(--warn)}
+hr{border:0; border-top:1px solid #1f2b4a; margin:18px 0}
+.small{font-size:13px; color:var(--mut)}
+.code{background:#0d1422; border:1px solid #223156; border-radius:8px; padding:10px; font-family:ui-monospace,monospace; font-size:13px}
+.tag{display:inline-block; background:#12203a; border:1px solid #25406f; color:#a8c7ff; padding:2px 8px; border-radius:999px; margin:3px 6px 0 0; font-size:12px}
+footer{opacity:.8; margin:22px 0 10px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Modelo Linear de Gauss–Markov (BLUE) + Calculadora OLS</h1>
+  <div class="small">Autor: <strong>Luiz Tiago Wilcke (LT)</strong> — Página 100% local (HTML+JS).</div>
+
+  <div class="card">
+    <h2>1) O modelo e as hipóteses de Gauss–Markov</h2>
+    <p>Considera-se o modelo linear clássico:</p>
+    <div class="code" id="eq-model">
+      \[
+        \underbrace{\mathbf{y}}_{\text{n\times1}} \;=\;
+        \underbrace{\mathbf{X}}_{\text{n\times p}}\,
+        \underbrace{\boldsymbol{\beta}}_{\text{p\times1}} \;+\;
+        \underbrace{\boldsymbol{\varepsilon}}_{\text{n\times1}},
+        \qquad \mathbb{E}[\boldsymbol{\varepsilon}]=\mathbf{0},\quad
+        \operatorname{Var}(\boldsymbol{\varepsilon})=\sigma^2 \mathbf{I}_n.
+      \]
+    </div>
+    <p>Hipóteses de Gauss–Markov (para que o OLS seja <span class="tag">B</span><span class="tag">L</span><span class="tag">U</span><span class="tag">E</span>):</p>
+    <ul>
+      <li>Linearidade em parâmetros: \(y = X\beta + \varepsilon\).</li>
+      <li>\(\operatorname{rank}(\mathbf{X})=p\).</li>
+      <li>\(\mathbb{E}[\varepsilon\mid X]=\mathbf{0}\).</li>
+      <li>Homoscedasticidade e não autocorrelação: \(\operatorname{Var}(\varepsilon\mid X)=\sigma^2\mathbf{I}\).</li>
+    </ul>
+    <p>Então o estimador OLS é:</p>
+    <div class="code">
+      \[
+        \hat{\boldsymbol{\beta}}
+        \;=\;
+        (\mathbf{X}^\top \mathbf{X})^{-1}\mathbf{X}^\top \mathbf{y}.
+      \]
+    </div>
+    <p>Com variância-covariância, erros-padrão e testes:</p>
+    <div class="code">
+      \[
+        \hat{\sigma}^2
+        = \frac{\lVert\mathbf{y}-\hat{\mathbf{y}}\rVert_2^2}{n-p},\qquad
+        \operatorname{Var}(\hat{\boldsymbol{\beta}})
+        = \hat{\sigma}^2 \, (\mathbf{X}^\top \mathbf{X})^{-1},
+      \]
+      \[
+        \text{se}(\hat\beta_j)=\sqrt{\left[\operatorname{Var}(\hat{\boldsymbol{\beta}})\right]_{jj}},\qquad
+        t_j=\frac{\hat\beta_j}{\text{se}(\hat\beta_j)}\;\sim\; t_{\,n-p}.
+      \]
+      \[
+        R^2
+        =1-\frac{\sum_i (y_i-\hat y_i)^2}{\sum_i (y_i-\bar y)^2},\qquad
+        R^2_{\text{aj}}=1-\frac{(n-1)}{(n-p)}(1-R^2).
+      \]
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2) Exemplo de uso</h2>
+    <p>Vamos modelar \(y=\) <em>vendas (mil R$)</em> como função de \(x_1=\) <em>anúncios</em> e \(x_2=\) <em>preço</em>. A calculadora aceita CSV em que a 1ª coluna é <strong>y</strong> e as demais são \(x\) (ela adiciona o intercepto \(\mathbf{1}\)).</p>
+    <details>
+      <summary class="kbd">Clique para exemplo</summary>
+      <div class="code">
+        y,x1,x2
+        12,3.0,20
+        10,2.5,22
+        15,3.7,19
+        9,1.8,24
+        14,3.2,20
+        11,2.2,23
+        16,4.0,18
+        13,3.1,21
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>3) Calculadora OLS (Gauss–Markov)</h2>
+    <div class="grid grid-2">
+      <div>
+        <label for="csv">Cole seus dados (CSV):</label>
+        <textarea id="csv" placeholder="y,x1,x2&#10;12,3.0,20&#10;10,2.5,22"></textarea>
+
+        <label for="alpha">Nível para IC (ex.: 0.95)</label>
+        <input id="alpha" type="number" step="0.01" value="0.95"/>
+
+        <button id="run">Rodar OLS</button>
+        <button id="clear" class="secondary">Limpar</button>
+
+        <hr>
+        <h3>Predição (opcional)</h3>
+        <p class="small">Forneça \(x_\text{novo}\) sem o intercepto; ele é inserido automaticamente.</p>
+        <label for="xnew">Ex.: <span class="kbd">x1=3.0, x2=21</span></label>
+        <input id="xnew" placeholder="x1=3.0, x2=21"/>
+        <button id="predict" class="secondary">Prever \( \hat y \) com IC</button>
+      </div>
+      <div>
+        <div class="code" id="eq-ols">
+          \[
+            \hat{\boldsymbol{\beta}}
+            = (\mathbf{X}^\top\mathbf{X})^{-1}\mathbf{X}^\top\mathbf{y},\quad
+            \hat{\sigma}^2=\frac{\mathbf{e}^\top\mathbf{e}}{n-p},\quad
+            \mathbf{V}_{\hat\beta}=\hat{\sigma}^2(\mathbf{X}^\top\mathbf{X})^{-1}.
+          \]
+          \[
+            \hat y_\text{novo} = \mathbf{x}_\text{novo}^\top \hat{\boldsymbol{\beta}},\qquad
+            \operatorname{se}(\hat y_\text{novo})=\sqrt{\mathbf{x}_\text{novo}^\top \mathbf{V}_{\hat\beta}\, \mathbf{x}_\text{novo}}.
+          \]
+        </div>
+        <p class="small">Após rodar, as fórmulas são re-renderizadas automaticamente.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4) Resultados</h2>
+    <div id="summary" class="table-wrap" style="display:none"></div>
+    <div id="betas" class="table-wrap" style="display:none; margin-top:12px"></div>
+    <div id="tests" class="table-wrap" style="display:none; margin-top:12px"></div>
+    <div id="pred" class="table-wrap" style="display:none; margin-top:12px"></div>
+    <div id="math-dynamic" class="code" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>5) Notas técnicas</h2>
+    <ul>
+      <li>Se \((X^\top X)\) for (quase) singular, considere remover variáveis colineares ou usar QR/SVD.</li>
+      <li>Heteroscedasticidade viola Gauss–Markov; use EPs robustos (HC0–HC3) se necessário.</li>
+      <li>Autocorrelação: em séries, OLS não é BLUE; pense em GLS/Newey–West.</li>
+    </ul>
+  </div>
+
+  <footer class="small">
+    © 2025 — LT. Ferramenta educacional de OLS/Gauss–Markov.
+  </footer>
+</div>
+
+<script>
+/* ========= utilidades numéricas ========= */
+const linspace = (a,b,n)=>Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+
+function transpose(A){
+  const n=A.length, m=A[0].length;
+  const T=Array.from({length:m},()=>Array(n).fill(0));
+  for(let i=0;i<n;i++) for(let j=0;j<m;j++) T[j][i]=A[i][j];
+  return T;
+}
+function matmul(A,B){
+  const n=A.length, m=A[0].length, p=B[0].length;
+  const C=Array.from({length:n},()=>Array(p).fill(0));
+  for(let i=0;i<n;i++){
+    for(let k=0;k<m;k++){
+      const aik=A[i][k];
+      for(let j=0;j<p;j++) C[i][j]+=aik*B[k][j];
+    }
+  }
+  return C;
+}
+function inv(A){
+  const n=A.length;
+  const M=A.map(r=>r.slice());
+  const I=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+  for(let j=0;j<n;j++){
+    let piv=j;
+    for(let i=j+1;i<n;i++) if(Math.abs(M[i][j])>Math.abs(M[piv][j])) piv=i;
+    if(Math.abs(M[piv][j])<1e-12) throw new Error("X'X é (quase) singular — colinearidade?");
+    [M[j],M[piv]]=[M[piv],M[j]];
+    [I[j],I[piv]]=[I[piv],I[j]];
+    const d=M[j][j];
+    for(let k=0;k<n;k++){ M[j][k]/=d; I[j][k]/=d; }
+    for(let i=0;i<n;i++){
+      if(i===j) continue;
+      const f=M[i][j];
+      for(let k=0;k<n;k++){ M[i][k]-=f*M[j][k]; I[i][k]-=f*I[j][k]; }
+    }
+  }
+  return I;
+}
+function mean(v){return v.reduce((a,b)=>a+b,0)/v.length}
+function sumsq(v){const m=mean(v); return v.reduce((s,yi)=>s+(yi-m)*(yi-m),0)}
+function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
+
+/* ========= parsing CSV ========= */
+function parseCSV(text){
+  const rows=text.trim().split(/\r?\n/).map(r=>r.trim()).filter(Boolean);
+  if(rows.length<2) throw new Error("Forneça cabeçalho + pelo menos 1 linha de dados.");
+  const header=rows[0].split(",").map(s=>s.trim());
+  const data=rows.slice(1).map(r=>r.split(",").map(s=>Number(s.trim())));
+  if(!header.length || header[0].toLowerCase()!=='y') throw new Error("A primeira coluna deve se chamar y.");
+  for(const row of data) if(row.some(v=>Number.isNaN(v))) throw new Error("Há valores não numéricos.");
+  return {header, data};
+}
+
+/* ========= OLS ========= */
+function ols(X,y){
+  const n=X.length, p=X[0].length;
+  const Xt=transpose(X);
+  const XtX=matmul(Xt,X);
+  const XtX_inv=inv(XtX);
+  const Xty=matmul(Xt,y);
+  const beta=matmul(XtX_inv,Xty);       // p×1
+  const yhat=matmul(X,beta);            // n×1
+  const e=y.map((_,i)=>[y[i][0]-yhat[i][0]]);
+  const sse=e.reduce((s,ei)=>s+ei[0]*ei[0],0);
+  const sst = sumsq(y.map(v=>v[0]));
+  const sigma2 = sse/(n-p);
+  const Vb = XtX_inv.map((row,i)=>row.map((_,j)=>XtX_inv[i][j]*sigma2));
+  const se = Vb.map((row,i)=>[Math.sqrt(Vb[i][i])]);
+  const t = beta.map((row,i)=>[ beta[i][0]/se[i][0] ]);
+  const r2 = 1 - sse/sst;
+  const r2adj = 1 - ((n-1)/(n-p))*(1-r2);
+  return {beta, yhat, e, sse, sst, sigma2, Vb, se, t, r2, r2adj};
+}
+
+/* ========= t-quantil aproximado ========= */
+function approx_t_quantile(p, df){
+  const z = invNorm(p);
+  const a = 1/(4*df);
+  return z * Math.sqrt((df - 2)/(df)) * (1 + a*z*z);
+}
+function invNorm(p){
+  if(p<=0||p>=1) throw new Error("p deve estar em (0,1)");
+  const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.3577518672690,-30.66479806614716,2.506628277459239];
+  const b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572];
+  const c=[-7.784894002430293e-3,-0.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783];
+  const d=[7.784695709041462e-3,0.3224671290700398,2.445134137142996,3.754408661907416];
+  const plow=0.02425, phigh=1-plow;
+  let q, r;
+  if(p<plow){
+    q=Math.sqrt(-2*Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+           ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }else if(p<=phigh){
+    q=p-0.5; r=q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q /
+           (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  }else{
+    q=Math.sqrt(-2*Math.log(1-p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+             ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+}
+
+/* ========= MathJax: helper robusto ========= */
+function typeset(){
+  const doTypeset = () => MathJax.typesetPromise();
+  if (window.MathJax && MathJax.typesetPromise) {
+    return doTypeset().catch(()=>{});
+  } else {
+    // guarda para rodar quando o MathJax terminar de carregar
+    window._pendingTypeset = window._pendingTypeset || [];
+    window._pendingTypeset.push(doTypeset);
+    return Promise.resolve();
+  }
+}
+
+/* ========= UI / Render ========= */
+const el = id => document.getElementById(id);
+const summaryDiv = el('summary');
+const betasDiv = el('betas');
+const testsDiv = el('tests');
+const predDiv = el('pred');
+const mathDyn = el('math-dynamic');
+
+function renderTable(div, header, rows){
+  const html = `
+    <table>
+      <thead><tr>${header.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${rows.map(r=>`<tr>${r.map(c=>`<td>${(typeof c==='number')? fmt(c): c}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>`;
+  div.innerHTML = html;
+  div.style.display = 'block';
+}
+const fmt = x => (Math.abs(x)>1e6||Math.abs(x)<1e-4) ? x.toExponential(5) : x.toFixed(6);
+
+function parseXnew(str, header){
+  const names = header.slice(1);
+  const obj = {};
+  str.split(',').forEach(tok=>{
+    const [k,v]=tok.split('=').map(s=>s.trim());
+    if(k) obj[k]=Number(v);
+  });
+  const arr = names.map(n=>{
+    if(!(n in obj)) throw new Error(`Falta valor para ${n} em x_novo`);
+    const val = Number(obj[n]);
+    if(Number.isNaN(val)) throw new Error(`Valor inválido em ${n}`);
+    return val;
+  });
+  return arr;
+}
+function confInt(tcrit, est, se){ return [est - tcrit*se, est + tcrit*se]; }
+
+/* ========= Botões ========= */
+el('run').addEventListener('click', async ()=>{
+  try{
+    [summaryDiv, betasDiv, testsDiv, predDiv, mathDyn].forEach(d=>{d.innerHTML=''; d.style.display='none';});
+
+    const {header, data} = parseCSV(el('csv').value);
+    const n = data.length, p_no_intercept = header.length - 1;
+    if(p_no_intercept<1) throw new Error("Forneça ao menos uma variável explicativa (x1, ...).");
+
+    const y = data.map(row=>[row[0]]);
+    const X = data.map(row=>{
+      const xs = [1];
+      for(let j=1;j<header.length;j++) xs.push(row[j]);
+      return xs;
+    });
+    const p = X[0].length;
+
+    const res = ols(X,y);
+    const df = n-p;
+    const alpha = Number(el('alpha').value);
+    const pUpper = 1-(1-alpha)/2;
+    const tcrit = approx_t_quantile(pUpper, df);
+
+    renderTable(summaryDiv,
+      ["n","p","df","SSE","SST","σ²̂","R²","R²_aj."],
+      [[n,p,df,res.sse,res.sst,res.sigma2,res.r2,res.r2adj]]
+    );
+
+    const names = ["Intercepto"].concat(header.slice(1));
+    const betarows = names.map((nm,j)=>{
+      const bj = res.beta[j][0];
+      const sej = res.se[j][0];
+      const tj = res.t[j][0];
+      const [lo,hi] = confInt(tcrit, bj, sej);
+      return [nm, bj, sej, tj, `[${fmt(lo)}, ${fmt(hi)}]`];
+    });
+    renderTable(betasDiv, ["Parâmetro","β̂","se(β̂)","t","IC ("+Math.round(alpha*100)+"%)"], betarows);
+
+    const testRows = data.map((row,i)=>[i+1, row[0], res.yhat[i][0], res.e[i][0]]);
+    renderTable(testsDiv, ["Obs","y","ŷ","resíduo"], testRows);
+
+    if(p<=5 && n<=50){
+      const Xt = transpose(X);
+      const XtX = matmul(Xt,X);
+      const XtXinv = inv(XtX);
+      const asMatrix = A => "\\begin{bmatrix}" + A.map(r=>r.map(v=>fmt(v)).join("&")).join("\\\\") + "\\end{bmatrix}";
+      mathDyn.innerHTML =
+      `
+      \\[
+        \\mathbf{X}^\\top\\mathbf{X}=
+        ${asMatrix(XtX)}\\quad
+        (\\mathbf{X}^\\top\\mathbf{X})^{-1}=
+        ${asMatrix(XtXinv)}
+      \\]
+      \\[
+        \\hat{\\boldsymbol{\\beta}}=
+        (\\mathbf{X}^\\top\\mathbf{X})^{-1}\\mathbf{X}^\\top\\mathbf{y}
+        \\;=\\;
+        ${asMatrix(res.beta)}
+      \\]`;
+      mathDyn.style.display='block';
+    }
+
+    await typeset();
+  }catch(err){
+    alert("Erro: "+err.message);
+  }
+});
+
+el('clear').addEventListener('click', ()=>{
+  el('csv').value='';
+  el('xnew').value='';
+  [summaryDiv, betasDiv, testsDiv, predDiv, mathDyn].forEach(d=>{d.innerHTML=''; d.style.display='none';});
+});
+
+el('predict').addEventListener('click', async ()=>{
+  try{
+    const {header, data} = parseCSV(el('csv').value);
+    if(!header) throw new Error("Insira dados primeiro.");
+    const n = data.length;
+    const y = data.map(row=>[row[0]]);
+    const X = data.map(row=>{
+      const xs = [1];
+      for(let j=1;j<header.length;j++) xs.push(row[j]);
+      return xs;
+    });
+    const p = X[0].length;
+    const {beta, Vb} = ols(X,y);
+
+    const raw = parseXnew(el('xnew').value, header);
+    const xnew = [1, ...raw];
+    if(xnew.length!==p) throw new Error("Dimensão de x_novo não bate com X.");
+    const yhat = dot(xnew, beta.map(b=>b[0]));
+    const Vx = dot( xnew, matmul(Vb, xnew.map(v=>[v])).map(r=>r[0]) );
+    const seY = Math.sqrt(Vx);
+
+    const alpha = Number(el('alpha').value);
+    const df = n - p;
+    const pUpper = 1-(1-alpha)/2;
+    const tcrit = approx_t_quantile(pUpper, df);
+    const lo = yhat - tcrit*seY;
+    const hi = yhat + tcrit*seY;
+
+    renderTable(predDiv, ["ŷ_novo","se(ŷ)","IC "+Math.round(alpha*100)+"%"],
+      [[yhat, seY, `[${fmt(lo)}, ${fmt(hi)}]`]]
+    );
+    await typeset();
+  }catch(err){
+    alert("Erro: "+err.message);
+  }
+});
+
+/* ========== Demo: auto-preenche e tipografa ao carregar ========== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const demo=`y,x1,x2
+12,3.0,20
+10,2.5,22
+15,3.7,19
+9,1.8,24
+14,3.2,20
+11,2.2,23
+16,4.0,18
+13,3.1,21`;
+  if(!el('csv').value.trim()) el('csv').value = demo;
+  typeset();
+});
+</script>
+</body>
+</html>
