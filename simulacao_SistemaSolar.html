@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sistema Solar — Animação (Autor: Luiz Tiago Wilcke)</title>
+<style>
+  :root{
+    --bg:#070a12; --panel:#0e1422; --ink:#eaf2ff; --mut:#9fb0c9;
+    --ac:#7fffd4; --ac2:#57d6ff; --warn:#ffd166; --ok:#8ef6a0;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 800px at 50% 60%, #0e1320 0%, #070a12 55%, #03060c 100%);
+    color:var(--ink); font:14px/1.4 system-ui, Segoe UI, Roboto, Ubuntu, Arial;
+    overflow:hidden;
+  }
+  header{
+    position:fixed; inset:16px auto auto 16px; z-index:5; user-select:none;
+    background:linear-gradient(180deg,#0f1628aa,#0b1120cc 70%);
+    border:1px solid #1e2a48; border-radius:14px; padding:12px 14px; backdrop-filter: blur(6px);
+    box-shadow: 0 12px 30px #00000080, inset 0 0 40px #0a1124;
+    max-width: 440px;
+  }
+  header h1{font-size:18px; margin:0 0 8px; color:var(--ac)}
+  header .by{font-size:12px; color:var(--mut); margin-bottom:10px}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0}
+  label{font-size:12px; color:var(--mut)}
+  input[type=range]{width:180px}
+  .pill{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+    background:#0c152a; border:1px solid #1b2a4a; border-radius:999px; color:var(--ink);
+  }
+  .btn{
+    cursor:pointer; padding:8px 12px; border-radius:10px; border:1px solid #1b2a4a;
+    background:linear-gradient(180deg,#13213b,#0c152a); color:var(--ink);
+    transition:.15s transform ease, .15s filter ease, .2s background ease;
+  }
+  .btn:hover{transform:translateY(-1px); filter:brightness(1.1)}
+  .btn:active{transform:translateY(0)}
+  .legend{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+  .legend .tag{
+    display:flex; align-items:center; gap:6px; font-size:12px; color:#cfe1ff;
+    background:#0b1324; border:1px solid #15284b; padding:4px 8px; border-radius:999px;
+  }
+  .dot{width:10px; height:10px; border-radius:50%}
+  canvas{display:block; position:fixed; inset:0}
+  footer{
+    position:fixed; right:16px; bottom:16px; z-index:5; color:#9fb0c9; font-size:12px;
+    background:#0b1120cc; border:1px solid #1c2746; border-radius:12px; padding:8px 10px;
+  }
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0b1324; border:1px solid #1b2a4a; border-radius:6px; padding:0 6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulação do Sistema Solar (com Plutão)</h1>
+  <div class="by">Autor: <strong>Luiz Tiago Wilcke</strong> — modelo kepleriano simplificado (órbitas circulares, mesmas inclinações no plano)</div>
+
+  <div class="row">
+    <span class="pill">
+      <label for="speed">Velocidade</label>
+      <input id="speed" type="range" min="0" max="4" step="0.01" value="1.0" />
+      <span id="speedVal" class="kbd">1.00×</span>
+    </span>
+
+    <span class="pill">
+      <label for="zoom">Zoom</label>
+      <input id="zoom" type="range" min="-2" max="2" step="0.01" value="0.00" />
+      <span id="zoomVal" class="kbd">1.00×</span>
+    </span>
+  </div>
+
+  <div class="row">
+    <button id="toggle" class="btn">⏸️ Pausar</button>
+    <button id="reset" class="btn">🔄 Centralizar</button>
+    <label class="pill">
+      <input id="names" type="checkbox" checked /> Mostrar nomes
+    </label>
+    <label class="pill">
+      <input id="trails" type="checkbox" checked /> Trilhas
+    </label>
+    <label class="pill">
+      <input id="orbits" type="checkbox" checked /> Órbitas
+    </label>
+  </div>
+
+  <div class="legend" id="legend"></div>
+</header>
+
+<canvas id="trailsCanvas"></canvas>
+<canvas id="mainCanvas"></canvas>
+
+<footer>
+  Dicas: <span class="kbd">Barra de espaço</span> pausa/retoma ·
+  <span class="kbd">R</span> reset · <span class="kbd">+</span>/<span class="kbd">-</span> zoom · arraste para pan
+</footer>
+
+<script>
+/* ============================================================
+   Sistema Solar — Kepleriano Simplificado com Plutão
+   Autor: Luiz Tiago Wilcke (LT)
+   - Órbitas circulares com períodos reais (aprox.)
+   - Distâncias escaladas log/linear mista para caber na tela
+   - Renderização em dois canvases: trilhas (persistente) e principal
+   - UI: velocidade, zoom, pause, toggle de nomes/órbitas/trilhas,
+     pan por arraste do mouse/touch
+   ============================================================ */
+
+// ----- Dados dos planetas (raios orbitais ~ UA; período sideral em anos) -----
+const BODIES = [
+  { name:"Sol",     color:"#ffd166", rAU:0.0005, periodY:1, size:18 },
+  { name:"Mercúrio",color:"#c0c0c0", rAU:0.39,   periodY:0.240846, size:3.5 },
+  { name:"Vênus",   color:"#f5deb3", rAU:0.72,   periodY:0.615,    size:5   },
+  { name:"Terra",   color:"#76c7ff", rAU:1.00,   periodY:1.000,    size:5.5 },
+  { name:"Marte",   color:"#ff7b5a", rAU:1.52,   periodY:1.881,    size:4.5 },
+  { name:"Júpiter", color:"#f3c180", rAU:5.20,   periodY:11.86,    size:10  },
+  { name:"Saturno", color:"#ffe6a3", rAU:9.58,   periodY:29.46,    size:9   },
+  { name:"Urano",   color:"#9fe3ff", rAU:19.20,  periodY:84.01,    size:8   },
+  { name:"Netuno",  color:"#6fb6ff", rAU:30.05,  periodY:164.8,    size:8   },
+  { name:"Plutão",  color:"#d9d0c7", rAU:39.48,  periodY:247.94,   size:3.3 } // anão, mas incluído
+];
+
+// ----- Canvas e contexto -----
+const trailsCanvas = document.getElementById('trailsCanvas');
+const mainCanvas = document.getElementById('mainCanvas');
+const tctx = trailsCanvas.getContext('2d');
+const ctx = mainCanvas.getContext('2d');
+
+function resize(){
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  [trailsCanvas, mainCanvas].forEach(c=>{
+    c.width = Math.floor(window.innerWidth * dpr);
+    c.height = Math.floor(window.innerHeight * dpr);
+    c.style.width = window.innerWidth + "px";
+    c.style.height = window.innerHeight + "px";
+  });
+  tctx.setTransform(1,0,0,1,0,0);
+  ctx.setTransform(1,0,0,1,0,0);
+  tctx.scale(dpr, dpr);
+  ctx.scale(dpr, dpr);
+  redrawStatic();
+}
+window.addEventListener('resize', resize);
+
+// ----- UI -----
+const speedSlider = document.getElementById('speed');
+const zoomSlider  = document.getElementById('zoom');
+const speedVal = document.getElementById('speedVal');
+const zoomVal  = document.getElementById('zoomVal');
+const btnToggle = document.getElementById('toggle');
+const btnReset = document.getElementById('reset');
+const cbNames  = document.getElementById('names');
+const cbTrails = document.getElementById('trails');
+const cbOrbits = document.getElementById('orbits');
+const legendEl = document.getElementById('legend');
+
+function updateUIValues(){
+  const sp = (2**parseFloat(speedSlider.value)).toFixed(2);
+  const zf = (10**parseFloat(zoomSlider.value/1)).toFixed(2);
+  speedVal.textContent = sp + "×";
+  zoomVal.textContent = zf + "×";
+}
+speedSlider.addEventListener('input', updateUIValues);
+zoomSlider.addEventListener('input', updateUIValues);
+updateUIValues();
+
+// Preenche legenda
+(function buildLegend(){
+  legendEl.innerHTML = '';
+  BODIES.forEach(b=>{
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.background = b.color;
+    tag.appendChild(dot);
+    tag.appendChild(document.createTextNode(b.name));
+    legendEl.appendChild(tag);
+  });
+})();
+
+// ----- Estado da simulação -----
+let running = true;
+let simTimeYears = 0; // tempo simulado em anos
+let center = { x: window.innerWidth/2, y: window.innerHeight/2 };
+let pan = { x: 0, y: 0 };
+let dragging = false;
+let dragStart = {x:0, y:0};
+let panStart = {x:0, y:0};
+
+function resetView(){
+  pan.x = pan.y = 0;
+  zoomSlider.value = "0.00";
+  updateUIValues();
+  clearTrails();
+  redrawStatic();
+}
+btnReset.onclick = resetView;
+
+btnToggle.onclick = ()=>{
+  running = !running;
+  btnToggle.textContent = running ? "⏸️ Pausar" : "▶️ Retomar";
+};
+
+window.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space'){ e.preventDefault(); btnToggle.click(); }
+  if(e.key === 'r' || e.key === 'R'){ resetView(); }
+  if(e.key === '+'){ zoomSlider.value = (parseFloat(zoomSlider.value)+0.05).toFixed(2); updateUIValues(); }
+  if(e.key === '-'){ zoomSlider.value = (parseFloat(zoomSlider.value)-0.05).toFixed(2); updateUIValues(); }
+});
+
+// Pan por mouse/touch
+function toPoint(evt){
+  if(evt.touches && evt.touches[0]) return {x:evt.touches[0].clientX, y:evt.touches[0].clientY};
+  return {x:evt.clientX, y:evt.clientY};
+}
+mainCanvas.addEventListener('mousedown', (e)=>{
+  dragging = true; dragStart = toPoint(e); panStart = {...pan};
+});
+window.addEventListener('mouseup', ()=> dragging=false);
+window.addEventListener('mousemove', (e)=>{
+  if(!dragging) return;
+  const p = toPoint(e);
+  pan.x = panStart.x + (p.x - dragStart.x);
+  pan.y = panStart.y + (p.y - dragStart.y);
+});
+mainCanvas.addEventListener('touchstart', (e)=>{ dragging=true; dragStart=toPoint(e); panStart={...pan}; });
+window.addEventListener('touchend', ()=> dragging=false);
+window.addEventListener('touchmove', (e)=>{ if(!dragging) return; const p=toPoint(e); pan.x=panStart.x+(p.x-dragStart.x); pan.y=panStart.y+(p.y-dragStart.y); });
+
+// ----- Escalas -----
+/* Misturamos uma escala quase logarítmica para distâncias, para que
+   Plutão caiba na mesma tela sem esmagar os internos. */
+function distScale(au){
+  const z = 10**parseFloat(zoomSlider.value);
+  const base = 190; // tamanho base em px por "unidade pseudo-log"
+  // compressão progressiva: d' = base * log(1 + k*au) com k ajustável
+  const k = 0.9;
+  return base * Math.log(1 + k*au) * z;
+}
+
+// ----- Desenhos persistentes -----
+function clearTrails(){
+  tctx.save();
+  // fade leve para criar "trilha fantasma"
+  tctx.globalCompositeOperation = 'source-over';
+  tctx.fillStyle = 'rgba(3,6,12,0.32)';
+  tctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+  tctx.restore();
+}
+
+function redrawStatic(){
+  // Limpa trilhas imediatamente quando mexe muito
+  tctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+}
+
+// ----- Cálculo de posição -----
+function posOf(body, tYears){
+  // ângulo (rad) por período circular simples
+  const omega = 2*Math.PI / body.periodY;
+  const theta = omega * tYears;
+  const r = distScale(body.rAU);
+  return { x: center.x + pan.x + r*Math.cos(theta),
+           y: center.y + pan.y + r*Math.sin(theta) };
+}
+
+// ----- Render frame -----
+function drawOrbits(){
+  if(!cbOrbits.checked) return;
+  ctx.save();
+  ctx.strokeStyle = "rgba(140,170,255,0.16)";
+  ctx.lineWidth = 1;
+  BODIES.forEach(b=>{
+    if(b.name==="Sol") return;
+    const r = distScale(b.rAU);
+    ctx.beginPath();
+    ctx.arc(center.x + pan.x, center.y + pan.y, r, 0, Math.PI*2);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawBodies(dt){
+  // trails fade
+  if(cbTrails.checked){
+    clearTrails();
+  }else{
+    tctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  }
+
+  BODIES.forEach(b=>{
+    const p = posOf(b, simTimeYears);
+    // trilha (ponto pequeno)
+    if(cbTrails.checked){
+      tctx.save();
+      tctx.globalCompositeOperation = 'lighter';
+      tctx.fillStyle = b.color + "cc";
+      tctx.beginPath(); tctx.arc(p.x, p.y, Math.max(1, b.size*0.25), 0, Math.PI*2); tctx.fill();
+      tctx.restore();
+    }
+
+    // corpo
+    ctx.save();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = (b.name==="Sol") ? 32 : 8;
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    const radius = (b.name==="Sol") ? b.size*1.2 : b.size;
+    ctx.arc(p.x, p.y, radius, 0, Math.PI*2);
+    ctx.fill();
+
+    // anel sutil para Saturno
+    if(b.name==="Saturno"){
+      ctx.strokeStyle = b.color + "88";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, radius*1.9, radius*1.1, Math.PI/6, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // nome
+    if(cbNames.checked){
+      ctx.save();
+      ctx.font = "12px system-ui, Segoe UI, Roboto, Arial";
+      ctx.fillStyle = "rgba(223,235,255,0.95)";
+      ctx.textAlign = "center";
+      ctx.fillText(b.name, p.x, p.y - (radius + 8));
+      ctx.restore();
+    }
+  });
+}
+
+// ----- Loop -----
+let last = performance.now();
+function frame(now){
+  const dt = (now - last)/1000; // segundos reais
+  last = now;
+
+  // avança tempo simulado: base 1 ano/seg * speed pow2
+  const speedFactor = 2**parseFloat(speedSlider.value);
+  simTimeYears += dt * speedFactor; // 1 seg real = 1 ano simulado @ 1×
+
+  // limpa canvas principal
+  ctx.clearRect(0,0,window.innerWidth, window.innerHeight);
+
+  // fundo sutil estelar (brilhos)
+  drawStars(ctx);
+
+  drawOrbits();
+  drawBodies(dt);
+
+  if(running) requestAnimationFrame(frame);
+}
+function drawStars(ctx){
+  // grade de brilhos leves, dependente de zoom para densidade
+  const z = 10**parseFloat(zoomSlider.value);
+  const density = Math.min(240, Math.floor(120*z));
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  for(let i=0;i<density;i++){
+    const x = (i*73 % (window.innerWidth+200)) - 100;
+    const y = ((i*199) % (window.innerHeight+200)) - 100;
+    const r = (i % 7 === 0) ? 1.2 : 0.6;
+    ctx.fillStyle = (i%11===0) ? "#a7c7ff" : "#e8f0ff";
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ----- Inicialização -----
+resize();
+redrawStatic();
+requestAnimationFrame(frame);
+
+// ----- Observadores para repintar estático quando toggles mudam -----
+[cbNames, cbOrbits].forEach(el=>{
+  el.addEventListener('change', ()=>{
+    // Só força repaint imediato
+    last = performance.now();
+  });
+});
+cbTrails.addEventListener('change', ()=>{
+  tctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+});
+
+// ----- Utilidades -----
+let rafQueued=false;
+const observer = new MutationObserver(()=>{
+  if(!rafQueued){
+    rafQueued = true;
+    requestAnimationFrame(()=>{ rafQueued=false; });
+  }
+});
+observer.observe(document.body, { attributes:true, childList:false, subtree:false });
+
+// Pausa/retoma mantendo o loop suave
+Object.defineProperty(window,'running',{
+  get(){ return running; },
+  set(v){
+    if(v && !running){ running=true; last=performance.now(); requestAnimationFrame(frame); }
+    else if(!v && running){ running=false; }
+  }
+});
+
+// ----- Créditos no console -----
+console.log("%cSistema Solar — LT","padding:6px 10px; background:#0b1120; color:#7fffd4; border:1px solid #1b2a4a; border-radius:6px");
+
+// ----- Ajustes finos de interação -----
+mainCanvas.addEventListener('dblclick', ()=>{
+  // zoom rápido no duplo clique
+  const v = Math.min(2, parseFloat(zoomSlider.value)+0.2);
+  zoomSlider.value = v.toFixed(2); updateUIValues();
+});
+</script>
+</body>
+</html>
+

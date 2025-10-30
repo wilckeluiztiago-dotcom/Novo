@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pac-Man Avançado — Autor: Luiz Tiago Wilcke (LT)</title>
+<style>
+  :root{
+    --bg:#0b0c10; --panel:#11141c; --grid:#1b2130; --ink:#eaf2ff; --mut:#9fb0c9;
+    --amarelo:#ffd54a; --azul:#57d6ff; --rosa:#ff87d6; --vermelho:#ff6b6b; --laranja:#ffb86b;
+    --pastel:#7fffd4; --fright:#3ee7a9; --parede:#22304a; --casa:#2a3a5a; --portao:#8dd3ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,Arial}
+  header{display:flex; gap:16px; align-items:center; padding:12px 16px; background:linear-gradient(180deg,#0e1422,#0b0c10)}
+  header h1{font-size:18px; margin:0; color:var(--pastel)}
+  header .info{opacity:.9; color:var(--mut)}
+  main{display:grid; grid-template-columns:1fr; place-items:center}
+  #painel{display:flex; gap:20px; align-items:center; justify-content:center; padding:8px 16px; color:var(--mut)}
+  #ui{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  button,select{background:#162034; color:var(--ink); border:1px solid #2a3b5e; border-radius:10px; padding:8px 12px}
+  button:hover{filter:brightness(1.15)}
+  canvas{background:#0a0f18; box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 0 0 2px #0d1626; border-radius:16px}
+  footer{padding:12px 16px; color:var(--mut); text-align:center}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Pac-Man Avançado — LT</h1>
+    <div class="info">Setas para mover · P pausa · R reiniciar · 1/2/3 IA</div>
+  </header>
+  <main>
+    <div id="painel">
+      <div>💛 Pontos: <span id="pontos">0</span></div>
+      <div>❤️ Vidas: <span id="vidas">3</span></div>
+      <div>⏱️ Nível: <span id="nivel">1</span></div>
+      <div id="estado" style="min-width:160px">Pronto</div>
+      <div id="ui">
+        <button id="btnPausa">Pausar</button>
+        <button id="btnReiniciar">Reiniciar</button>
+        <select id="selIA">
+          <option value="classico">IA: Clássico (Scatter/Chase)</option>
+          <option value="aestrela">IA: A* (Chase adaptativo)</option>
+          <option value="misto">IA: Misto (Clássico + A*)</option>
+        </select>
+      </div>
+    </div>
+    <canvas id="jogo" width="672" height="744" aria-label="Tabuleiro do Pac-Man"></canvas>
+  </main>
+  <footer>Canvas 2D; Fantasmas com FSM e A*. Portão da casa impede Pac, e só abre para fantasma quando saindo/olhos. Autor: Luiz Tiago Wilcke.</footer>
+
+<script>
+(() => {
+  // ---------- Setup ----------
+  const T = 24; // tamanho do tile
+  const canvas = document.getElementById('jogo');
+  const ctx = canvas.getContext('2d');
+
+  // Polyfill roundRect
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+rr,y);
+      this.arcTo(x+w,y,x+w,y+h,rr);
+      this.arcTo(x+w,y+h,x,y+h,rr);
+      this.arcTo(x,y+h,x,y,rr);
+      this.arcTo(x,y,x+w,y,rr);
+      this.closePath();
+      return this;
+    }
+  }
+
+  const ui = {
+    pontos: document.getElementById('pontos'),
+    vidas: document.getElementById('vidas'),
+    nivel: document.getElementById('nivel'),
+    estado: document.getElementById('estado'),
+    btnPausa: document.getElementById('btnPausa'),
+    btnReiniciar: document.getElementById('btnReiniciar'),
+    selIA: document.getElementById('selIA')
+  };
+
+  const cores = {
+    parede: get('--parede','#22304a'), casa: get('--casa','#2a3a5a'),
+    portao: get('--portao','#8dd3ff'), grid: get('--grid','#1b2130'),
+    pac: get('--amarelo','#ffd54a'), vermelho: get('--vermelho','#ff6b6b'),
+    rosa: get('--rosa','#ff87d6'), azul: get('--azul','#57d6ff'),
+    laranja: get('--laranja','#ffb86b'), fright: get('--fright','#3ee7a9'),
+  };
+  function get(varName, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback; }
+
+  // ---------- Mapa (31 x 28 válidos) ----------
+  // 0: caminho, 1: parede, 2: pílula, 3: power, 4: casa, 5: portão
+  // (Mapa simétrico, com corredor de portal na linha 14)
+  const mapaTexto = [
+    "1111111111111111111111111111",
+    "1............11............1",
+    "1.1111.11111.11.11111.1111.1",
+    "1*1111.11111.11.11111.1111*1",
+    "1.1111.11111.11.11111.1111.1",
+    "1..........................1",
+    "1.1111.11.11111111.11.1111.1",
+    "1.1111.11.11111111.11.1111.1",
+    "1......11....11....11......1",
+    "111111.11111.11.11111.111111",
+    "1    1.11111.11.11111.1    1",
+    "1    1.11          11.1    1",
+    "1    1.11 444555444 11.1    1",
+    "111111.11 4  444  4 11.111111",
+    "      .   4  4 4  4   .      ",
+    "111111.11 4  444  4 11.111111",
+    "1    1.11 444444444 11.1    1",
+    "1    1.11          11.1    1",
+    "1    1.11111.11.11111.1    1",
+    "111111.11111.11.11111.111111",
+    "1............11............1",
+    "1.1111.11111.11.11111.1111.1",
+    "1.1111.11111.11.11111.1111.1",
+    "1..11..................11..1",
+    "111.11.11.11111111.11.11.111",
+    "1......11....11....11......1",
+    "1.1111111111.11.1111111111.1",
+    "1..........................1",
+    "1111111111111111111111111111",
+    // Duas linhas extras de borda (vazias) p/ bater 31 (colocamos como parede para segurança)
+    "1111111111111111111111111111"
+  ];
+  // Garante que todas as linhas tenham a mesma largura preenchendo espaços
+  const COLS = Math.max(...mapaTexto.map(l=>l.length));
+  const LINHAS = mapaTexto.length;
+  canvas.width = COLS*T; canvas.height = LINHAS*T;
+
+  // Normaliza linhas curtas completando com '1' (parede) no final para evitar "buracos" fora da largura
+  for(let i=0;i<mapaTexto.length;i++){
+    if(mapaTexto[i].length < COLS){
+      mapaTexto[i] = mapaTexto[i].padEnd(COLS,'1');
+    }
+  }
+
+  const mapa = mapaTexto.map(linha => Array.from(linha).map(ch => {
+    if(ch==='1') return 1;
+    if(ch==='.'){ return 2; }
+    if(ch==='*'){ return 3; }
+    if(ch==='4') return 4;
+    if(ch==='5') return 5;
+    // espaços contam como caminho (0)
+    return 0;
+  }));
+
+  // ---------- Helpers de grid ----------
+  const dentro = (c,l)=> c>=0 && c<COLS && l>=0 && l<LINHAS;
+  const portalRow = 14; // corredor de portal (linha 14 do mapa acima)
+  function wrap(c,l){
+    if(l===portalRow && c<0) return [COLS-1,l];
+    if(l===portalRow && c>=COLS) return [0,l];
+    return [c,l];
+  }
+
+  // Bloqueios
+  const ehParede = (c,l)=> !dentro(c,l) || mapa[l][c]===1;
+  const ehPortao = (c,l)=> dentro(c,l) && mapa[l][c]===5;
+  const blocoPac   = (c,l)=> ehParede(c,l) || ehPortao(c,l);
+  const blocoGhost = (permitirPortao)=>(c,l)=> ehParede(c,l) || (!permitirPortao && ehPortao(c,l));
+
+  // ---------- A* (tile-based) ----------
+  function aEstrela(origem, destino, bloqueio){
+    const key = (c,l)=>`${c},${l}`;
+    const h = (c,l)=> Math.abs(c-destino[0]) + Math.abs(l-destino[1]);
+    const open = new Set([key(...origem)]);
+    const came = new Map();
+    const g = new Map([[key(...origem),0]]);
+    const f = new Map([[key(...origem),h(...origem)]]);
+
+    function viz([c,l]){
+      return [[c+1,l],[c-1,l],[c,l+1],[c,l-1]].map(([nc,nl])=>wrap(nc,nl))
+        .filter(([nc,nl])=> dentro(nc,nl) && !bloqueio(nc,nl));
+    }
+
+    while(open.size){
+      // menor f
+      let atualK=null, melhor=Infinity;
+      for(const k of open){ const fv = f.get(k)??Infinity; if(fv<melhor){melhor=fv; atualK=k;} }
+      const [c,l] = atualK.split(',').map(Number);
+      if(c===destino[0] && l===destino[1]){
+        const caminho = [[c,l]];
+        let ck = atualK;
+        while(came.has(ck)){ ck = came.get(ck); const [pc,pl]=ck.split(',').map(Number); caminho.push([pc,pl]); }
+        caminho.reverse();
+        return caminho;
+      }
+      open.delete(atualK);
+      for(const [nc,nl] of viz([c,l])){
+        const nk = key(nc,nl);
+        const tent = (g.get(atualK)??Infinity) + 1;
+        if(tent < (g.get(nk)??Infinity)){
+          came.set(nk, atualK);
+          g.set(nk, tent);
+          f.set(nk, tent + h(nc,nl));
+          open.add(nk);
+        }
+      }
+    }
+    return null;
+  }
+
+  // ---------- Entidade base (travada em grade) ----------
+  class Entidade{
+    constructor(c,l,vel){
+      this.c=c; this.l=l;
+      this.x = c*T + T/2; this.y = l*T + T/2;
+      this.vel = vel;          // px/s
+      this.dir = {x:0,y:0};    // -1/0/1 por eixo
+      this.desejo = {x:0,y:0}; // direcional desejado (viradas)
+      this.alvoCel = [c,l];    // próximo tile alvo
+    }
+    // alinhado ao centro?
+    alinhado(){
+      const cx = this.c*T + T/2, cy = this.l*T + T/2;
+      return Math.abs(this.x-cx) < 0.5 && Math.abs(this.y-cy) < 0.5;
+    }
+    // teleporta (wrap) se sair horizontalmente na linha do portal
+    aplicarWrap(){
+      const [nc,nl] = wrap(this.c, this.l);
+      if(nc!==this.c || nl!==this.l){
+        this.c=nc; this.l=nl;
+        this.x = this.c*T + T/2;
+        this.y = this.l*T + T/2;
+      }
+    }
+    // aproxima para o centro do tile
+    snapCentro(){
+      this.x = this.c*T + T/2;
+      this.y = this.l*T + T/2;
+    }
+    moverParaAlvo(dt){
+      // Caminha em linha até o centro do próximo tile (alvoCel)
+      const alvoX = this.alvoCel[0]*T + T/2;
+      const alvoY = this.alvoCel[1]*T + T/2;
+      const dx = alvoX - this.x, dy = alvoY - this.y;
+      const dist = Math.hypot(dx,dy);
+      const passo = this.vel*dt;
+      if(dist <= passo){
+        this.x = alvoX; this.y = alvoY;
+        this.c = this.alvoCel[0]; this.l = this.alvoCel[1];
+        this.aplicarWrap();
+        return true; // chegou ao alvo
+      } else {
+        this.x += (dx/dist)*passo;
+        this.y += (dy/dist)*passo;
+        return false;
+      }
+    }
+  }
+
+  class Pacman extends Entidade{
+    constructor(c,l){ super(c,l, 90); this.angulo = 0; this.boca=0; this.invencivel=0; }
+    tentarVirar(bloqueio){
+      // Só tenta virar se estiver (quase) no centro do tile
+      if(!this.alinhado()) return;
+      const nc = this.c + this.desejo.x;
+      const nl = this.l + this.desejo.y;
+      const [wc,wl] = wrap(nc,nl);
+      if(!bloqueio(wc,wl)){
+        this.dir = {x:this.desejo.x, y:this.desejo.y};
+        this.alvoCel = [wc,wl];
+      }
+    }
+    continuarOuParar(bloqueio){
+      // Se não tem movimento, tenta seguir na dir atual; senão para.
+      if(this.dir.x===0 && this.dir.y===0) return;
+      if(!this.alinhado()) return;
+      const nc = this.c + this.dir.x;
+      const nl = this.l + this.dir.y;
+      const [wc,wl] = wrap(nc,nl);
+      if(!bloqueio(wc,wl)){
+        this.alvoCel = [wc,wl];
+      } else {
+        // bloqueado: para no centro
+        this.dir = {x:0,y:0};
+        this.alvoCel = [this.c,this.l];
+        this.snapCentro();
+      }
+    }
+    atualizar(dt, bloqueio){
+      // Boca + rotação
+      this.boca += dt*8; if(this.boca>Math.PI) this.boca -= Math.PI;
+      if(this.dir.x!==0 || this.dir.y!==0){ this.angulo = Math.atan2(this.dir.y, this.dir.x); }
+      if(this.invencivel>0) this.invencivel -= dt;
+
+      // 1) virar se possível
+      this.tentarVirar(bloqueio);
+      // 2) manter movimento ou parar se houver bloqueio adiante
+      this.continuarOuParar(bloqueio);
+      // 3) avançar até alvo
+      const chegou = this.moverParaAlvo(dt);
+      if(chegou && this.dir.x===0 && this.dir.y===0){
+        this.snapCentro();
+      }
+    }
+    desenhar(){
+      const r=T*0.55/2; ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angulo);
+      ctx.fillStyle = cores.pac; ctx.beginPath();
+      const abertura = Math.abs(Math.sin(this.boca))*Math.PI*0.35;
+      ctx.moveTo(0,0); ctx.arc(0,0,r, abertura, 2*Math.PI - abertura); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0b0c10'; ctx.beginPath(); ctx.arc(r*0.3,-r*0.4, r*0.12, 0, 2*Math.PI); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  const ESTADOS = { CASA:'casa', SAINDO:'saindo', SCATTER:'scatter', CHASE:'chase', FRIGHT:'fright', OLHOS:'olhos' };
+
+  class Fantasma extends Entidade{
+    constructor(nome,c,l,cor,alvoScatter){
+      super(c,l, 80);
+      this.nome=nome; this.cor=cor; this.estado=ESTADOS.CASA; this.timer=0;
+      this.alvoScatter=alvoScatter; this.relogioFright=0; this.delaySaida=0;
+    }
+    setDelay(d){ this.delaySaida=d; return this; }
+
+    escolherProximoTile(pac, permitirPortao){
+      // Decide próximo passo (tile vizinho) com A* (1º passo do caminho)
+      let destino;
+      const modo = ui.selIA.value;
+      if(this.estado===ESTADOS.SCATTER){
+        destino = this.alvoScatter.slice();
+      } else if(this.estado===ESTADOS.CHASE || this.estado===ESTADOS.FRIGHT){
+        // FRIGHT usa aleatório local
+        if(this.estado===ESTADOS.FRIGHT){
+          const viz = [[1,0],[-1,0],[0,1],[0,-1]]
+            .map(([dx,dy])=>wrap(this.c+dx,this.l+dy))
+            .filter(([c,l])=> dentro(c,l) && !blocoGhost(permitirPortao)(c,l));
+          if(viz.length){
+            destino = viz[Math.floor(Math.random()*viz.length)];
+          } else destino = [this.c,this.l];
+        } else {
+          if(modo==='classico'){
+            // mira alguns tiles à frente do Pac
+            const off = 4;
+            const ac = Math.max(0, Math.min(COLS-1, pac.c + Math.sign(pac.x - this.x)*off));
+            const al = Math.max(0, Math.min(LINHAS-1, pac.l + Math.sign(pac.y - this.y)*off));
+            destino = [ac,al];
+          } else {
+            let alvo = [pac.c,pac.l];
+            if(modo==='misto'){
+              const offs = [[2,0],[-2,0],[0,2],[0,-2]];
+              const pick = offs[Math.floor(Math.random()*offs.length)];
+              alvo = [Math.max(0,Math.min(COLS-1, alvo[0]+pick[0])), Math.max(0,Math.min(LINHAS-1, alvo[1]+pick[1]))];
+            }
+            destino = alvo;
+          }
+        }
+      } else if(this.estado===ESTADOS.SAINDO || this.estado===ESTADOS.OLHOS){
+        destino = (this.estado===ESTADOS.OLHOS) ? [13,14] : [13,11];
+      } else {
+        destino = [this.c,this.l];
+      }
+
+      const cam = aEstrela([this.c,this.l], destino, blocoGhost(permitirPortao));
+      if(cam && cam.length>1){
+        const [nc,nl] = cam[1];
+        return [nc,nl];
+      }
+      return [this.c,this.l];
+    }
+
+    atualizar(dt, pac){
+      this.timer += dt;
+
+      // Regras de estado
+      if(this.estado===ESTADOS.CASA && this.timer > this.delaySaida){
+        this.estado = ESTADOS.SAINDO; this.timer=0;
+      }
+      if(this.estado===ESTADOS.FRIGHT){
+        this.relogioFright -= dt;
+        if(this.relogioFright<=0){ this.estado=ESTADOS.CHASE; this.timer=0; }
+      }
+      if(this.estado!==ESTADOS.CASA && this.estado!==ESTADOS.SAINDO && this.estado!==ESTADOS.OLHOS){
+        // alternância scatter/chase
+        const ciclos=[7,20,7,20,5,Infinity];
+        let t=this.timer, idx=0; while(idx<ciclos.length && t>ciclos[idx]){ t-=ciclos[idx]; idx++; }
+        this.estado = (idx%2===0) ? ESTADOS.SCATTER : ESTADOS.CHASE;
+      }
+
+      const permitirPortao = (this.estado===ESTADOS.SAINDO || this.estado===ESTADOS.OLHOS);
+      // Se está alinhado no centro, escolhe próximo tile; senão continua
+      if(this.alinhado()){
+        // tenta virar para o próximo tile escolhido pela IA
+        const [nc,nl] = this.escolherProximoTile(pac, permitirPortao);
+        // define direção baseada no próximo tile
+        const dx = Math.sign(nc - this.c);
+        const dy = Math.sign(nl - this.l);
+        // checa bloqueio
+        const [wc,wl] = wrap(this.c+dx, this.l+dy);
+        if(!blocoGhost(permitirPortao)(wc,wl)){
+          this.dir = {x:dx,y:dy};
+          this.alvoCel = [wc,wl];
+        } else {
+          // parado (encruzilhada bloqueada)
+          this.dir = {x:0,y:0};
+          this.alvoCel = [this.c,this.l];
+        }
+      }
+      // avança até o alvo
+      const chegou = this.moverParaAlvo(dt);
+      if(chegou && this.dir.x===0 && this.dir.y===0){
+        this.snapCentro();
+      }
+    }
+
+    assustar(){ this.estado=ESTADOS.FRIGHT; this.relogioFright=6; this.timer=0; }
+    comer(){ this.estado=ESTADOS.OLHOS; this.timer=0; this.vel=120; }
+    desenhar(){
+      const r=T*0.55/2; ctx.save(); ctx.translate(this.x,this.y);
+      const cor = (this.estado===ESTADOS.FRIGHT) ? cores.fright : this.cor;
+      ctx.fillStyle = cor; ctx.beginPath();
+      ctx.arc(0,-r*0.2, r, Math.PI, 0);
+      ctx.lineTo(r, r);
+      const ondas=4;
+      for(let i=0;i<=ondas;i++){
+        const t=i/ondas; const x=r - 2*r*t; const y=r - (i%2? r*0.2:0);
+        ctx.lineTo(x,y);
+      }
+      ctx.closePath(); ctx.fill();
+      // olhos
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(-r*0.35,-r*0.1, r*0.22, 0, 2*Math.PI); ctx.arc(r*0.35,-r*0.1, r*0.22, 0, 2*Math.PI); ctx.fill();
+      ctx.fillStyle = '#0b0c10';
+      ctx.beginPath(); ctx.arc(-r*0.35 + r*0.18*Math.sign(this.dir.x), -r*0.1 + r*0.18*Math.sign(this.dir.y), r*0.11, 0, 2*Math.PI);
+      ctx.arc(r*0.35 + r*0.18*Math.sign(this.dir.x), -r*0.1 + r*0.18*Math.sign(this.dir.y), r*0.11, 0, 2*Math.PI); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ---------- Jogo ----------
+  const jogo = {
+    pontos:0, vidas:3, nivel:1, pausa:false, fim:false,
+    pac: null, fantasmas: [],
+    reset(parcial=false){
+      this.pausa=false; this.fim=false; ui.estado.textContent='Pronto';
+      if(!parcial){ this.pontos=0; this.vidas=3; this.nivel=1; recarregarPilulas(); }
+      // posições iniciais seguras (caminho)
+      this.pac = new Pacman(13,23);
+      this.pac.snapCentro();
+      this.fantasmas = [
+        new Fantasma('Vermelho',13,14, cores.vermelho, [COLS-2,1]).setDelay(0),
+        new Fantasma('Rosa',14,14, cores.rosa, [1,1]).setDelay(2),
+        new Fantasma('Azul',12,14, cores.azul, [COLS-2,LINHAS-2]).setDelay(6),
+        new Fantasma('Laranja',13,15, cores.laranja, [1,LINHAS-2]).setDelay(10),
+      ];
+      atualizarUI();
+    }
+  };
+
+  function atualizarUI(){
+    ui.pontos.textContent=jogo.pontos;
+    ui.vidas.textContent=jogo.vidas;
+    ui.nivel.textContent=jogo.nivel;
+  }
+
+  function recarregarPilulas(){
+    for(let l=0;l<LINHAS;l++){
+      for(let c=0;c<COLS;c++){
+        const ch = mapaTexto[l][c];
+        if(ch === '.') mapa[l][c]=2;
+        if(ch === '*') mapa[l][c]=3;
+      }
+    }
+  }
+
+  // ---------- Entrada ----------
+  const teclas = {ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0]};
+  addEventListener('keydown', e=>{
+    if(teclas[e.key]){
+      e.preventDefault();
+      const [dx,dy] = teclas[e.key];
+      jogo.pac.desejo = {x:dx,y:dy};
+    }
+    if(e.key==='p' || e.key==='P'){ jogo.pausa=!jogo.pausa; ui.estado.textContent=jogo.pausa?'Pausado':'Jogando'; }
+    if(e.key==='r' || e.key==='R'){ jogo.reset(); }
+    if(e.key==='1'){ ui.selIA.value='classico'; }
+    if(e.key==='2'){ ui.selIA.value='aestrela'; }
+    if(e.key==='3'){ ui.selIA.value='misto'; }
+  });
+  ui.btnPausa.onclick=()=>{ jogo.pausa=!jogo.pausa; ui.estado.textContent=jogo.pausa?'Pausado':'Jogando'; };
+  ui.btnReiniciar.onclick=()=> jogo.reset();
+
+  // ---------- Desenho ----------
+  function desenharMapa(){
+    ctx.save();
+    // grid
+    ctx.strokeStyle = '#0e1626'; ctx.lineWidth = 1; ctx.globalAlpha=.35;
+    for(let x=0;x<=COLS*T;x+=T){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,LINHAS*T); ctx.stroke(); }
+    for(let y=0;y<=LINHAS*T;y+=T){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(COLS*T,y); ctx.stroke(); }
+    ctx.globalAlpha=1;
+
+    for(let l=0;l<LINHAS;l++){
+      for(let c=0;c<COLS;c++){
+        const v = mapa[l][c], x=c*T, y=l*T;
+        if(v===1){
+          ctx.fillStyle = cores.parede; ctx.strokeStyle = '#2f4266'; ctx.lineWidth=2;
+          ctx.beginPath(); ctx.roundRect(x+2,y+2,T-4,T-4,6); ctx.fill(); ctx.stroke();
+        } else if(v===4){
+          ctx.fillStyle = cores.casa; ctx.beginPath(); ctx.roundRect(x+4,y+4,T-8,T-8,6); ctx.fill();
+        } else if(v===5){
+          ctx.strokeStyle = cores.portao; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+4,y+T/2); ctx.lineTo(x+T-4,y+T/2); ctx.stroke();
+        } else if(v===2){
+          ctx.fillStyle = '#d6e2ff'; ctx.beginPath(); ctx.arc(x+T/2,y+T/2, 2.5, 0, 2*Math.PI); ctx.fill();
+        } else if(v===3){
+          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+T/2,y+T/2, 6, 0, 2*Math.PI); ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---------- Regras ----------
+  function comerCoisas(){
+    const c = jogo.pac.c, l = jogo.pac.l;
+    const v = mapa[l][c];
+    if(v===2){ mapa[l][c]=0; jogo.pontos += 10; atualizarUI(); checarAvanco(); }
+    if(v===3){ mapa[l][c]=0; jogo.pontos += 50; atualizarUI(); jogo.fantasmas.forEach(f=>f.assustar()); }
+  }
+
+  function checarAvanco(){
+    for(let l=0;l<LINHAS;l++) for(let c=0;c<COLS;c++) if(mapa[l][c]===2||mapa[l][c]===3) return;
+    jogo.nivel++; atualizarUI();
+    jogo.pac.vel += 6; jogo.fantasmas.forEach(f=> f.vel += 5);
+    recarregarPilulas();
+    // repõe fantasmas na casa
+    jogo.fantasmas.forEach((f,i)=>{ f.c=13; f.l=14+(i%2); f.x=f.c*T+T/2; f.y=f.l*T+T/2; f.estado=ESTADOS.CASA; f.timer=0; f.setDelay(i*2); f.vel=80; });
+  }
+
+  function colisaoPacFantasma(){
+    for(const f of jogo.fantasmas){
+      const d = Math.hypot(jogo.pac.x - f.x, jogo.pac.y - f.y);
+      if(d < T*0.45){
+        if(f.estado===ESTADOS.FRIGHT){ f.comer(); jogo.pontos+=200; atualizarUI(); }
+        else if(f.estado!==ESTADOS.OLHOS && jogo.pac.invencivel<=0){
+          jogo.vidas--; atualizarUI(); jogo.pac.invencivel=2; ui.estado.textContent='Ai!';
+          if(jogo.vidas<=0){ jogo.fim=true; ui.estado.textContent='Game Over'; }
+          else { // reposiciona Pac no centro seguro
+            jogo.pac.c=13; jogo.pac.l=23; jogo.pac.snapCentro(); jogo.pac.dir={x:0,y:0}; jogo.pac.desejo={x:0,y:0};
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- Loop ----------
+  const BLOQUEIO_PAC = (c,l)=> blocoPac(c,l);
+  function loop(ts){
+    const dt = 1/60; // timestep fixo para estabilidade
+    if(!jogo.pausa && !jogo.fim){
+      jogo.pac.atualizar(dt, BLOQUEIO_PAC);
+      comerCoisas();
+      for(const f of jogo.fantasmas) f.atualizar(dt, jogo.pac);
+      colisaoPacFantasma();
+    }
+    // draw
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    desenharMapa();
+    for(const f of jogo.fantasmas) f.desenhar();
+    jogo.pac.desenhar();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Start ----------
+  jogo.reset(false);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
+

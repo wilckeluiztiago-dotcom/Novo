@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo de Xadrez com IA</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Orbitron', sans-serif;
+      background-color: #0d0d0d;
+      color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    h1 {
+      color: #ff3333;
+      text-shadow: 0 0 10px #ff3333, 0 0 20px #ff3333;
+      margin-bottom: 20px;
+    }
+    #controls {
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #chessboard {
+      display: grid;
+      grid-template-columns: repeat(8, 60px);
+      grid-template-rows: repeat(8, 60px);
+      border: 4px solid #333;
+      box-shadow: 0 0 20px #ff3333, 0 0 40px #ff3333;
+      background-color: #1a1a1a;
+    }
+    .casa {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.3s, transform 0.2s;
+      position: relative;
+    }
+    .casa.light {
+      background: linear-gradient(145deg, #4d4d4d, #1a1a1a);
+      box-shadow:  5px 5px 15px #141414,
+                   -5px -5px 15px #262626;
+      color: #f0f0f0;
+    }
+    .casa.dark {
+      background: linear-gradient(145deg, #1a1a1a, #0d0d0d);
+      box-shadow:  5px 5px 15px #000000,
+                   -5px -5px 15px #141414;
+      color: #f0f0f0;
+    }
+    .casa:hover {
+      transform: scale(1.05);
+    }
+    .casa.selected {
+      border: 3px solid #00ffea;
+      box-shadow: 0 0 20px #00ffea;
+    }
+    .casa.highlight {
+      background: linear-gradient(145deg, #00ffea, #007f8c) !important;
+      box-shadow: 0 0 20px #00ffea;
+      color: #ffffff !important;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      text-shadow: 0 0 5px #ff3333;
+    }
+    #difficulty {
+      margin-left: 10px;
+      padding: 5px;
+      border-radius: 5px;
+      border: none;
+      background-color: #333;
+      color: #f0f0f0;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: inset 3px 3px 5px #000000, inset -3px -3px 5px #4d4d4d;
+      transition: background-color 0.3s;
+    }
+    #difficulty:hover {
+      background-color: #555;
+    }
+    #restartBtn {
+      margin-left: 10px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      border: none;
+      background-color: #ff3333;
+      color: #f0f0f0;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 3px 3px 5px #000000, -3px -3px 5px #4d4d4d;
+      transition: background-color 0.3s;
+    }
+    #restartBtn:hover {
+      background-color: #ff6666;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #999;
+      text-shadow: 0 0 3px #ff3333;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Jogo de Xadrez com IA</h1>
+
+  <div id="controls">
+    <label for="difficulty">Nível de Dificuldade:</label>
+    <select id="difficulty">
+      <option value="easy">Fácil</option>
+      <option value="medium">Médio</option>
+      <option value="hard">Difícil</option>
+    </select>
+    <button id="restartBtn">Reiniciar Jogo</button>
+  </div>
+
+  <div id="chessboard"></div>
+
+  <div id="status">Turno: Brancas</div>
+
+  <footer>Autor: Luiz Tiago Wilcke</footer>
+
+  <script>
+    // Representação do Tabuleiro Inicial
+    const tabuleiroInicial = [
+      ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+      ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+      ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
+    ];
+
+    // Mapeamento dos Símbolos Unicode para as Peças
+    const simbolosPecas = {
+      'P': '♙', 'p': '♟︎',
+      'R': '♖', 'r': '♜',
+      'N': '♘', 'n': '♞',
+      'B': '♗', 'b': '♝',
+      'Q': '♕', 'q': '♛',
+      'K': '♔', 'k': '♚',
+    };
+
+    // Estado do Jogo
+    let tabuleiro = JSON.parse(JSON.stringify(tabuleiroInicial));
+    let pecaSelecionada = null;
+    let jogadorAtual = 'white'; // 'white' ou 'black'
+    let jogoFinalizado = false;
+    let dificuldade = 'easy';
+    let historicoMovimentos = [];
+
+    // Elementos do DOM
+    const elementoTabuleiro = document.getElementById('chessboard');
+    const elementoStatus = document.getElementById('status');
+    const selecaoDificuldade = document.getElementById('difficulty');
+    const botaoReiniciar = document.getElementById('restartBtn');
+
+    // Inicializar o Tabuleiro no DOM
+    function inicializarTabuleiro() {
+      elementoTabuleiro.innerHTML = '';
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          const casa = document.createElement('div');
+          casa.classList.add('casa');
+          const isLight = (x + y) % 2 === 0;
+          casa.classList.add(isLight ? 'light' : 'dark');
+          casa.id = `${x}-${y}`;
+          casa.innerHTML = tabuleiro[x][y] ? simbolosPecas[tabuleiro[x][y]] : '';
+          casa.addEventListener('click', () => lidarCliqueCasa(x, y));
+          elementoTabuleiro.appendChild(casa);
+        }
+      }
+      atualizarStatus();
+    }
+
+    // Atualizar a Interface do Tabuleiro
+    function atualizarInterfaceTabuleiro() {
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          const casa = document.getElementById(`${x}-${y}`);
+          casa.innerHTML = tabuleiro[x][y] ? simbolosPecas[tabuleiro[x][y]] : '';
+          casa.classList.remove('selected', 'highlight');
+        }
+      }
+      if (pecaSelecionada) {
+        const [x, y] = pecaSelecionada;
+        const casa = document.getElementById(`${x}-${y}`);
+        casa.classList.add('selected');
+        const movimentos = obterMovimentosPossiveis(pecaSelecionada, tabuleiro);
+        movimentos.forEach(move => {
+          const [mx, my] = move;
+          const casaDestino = document.getElementById(`${mx}-${my}`);
+          casaDestino.classList.add('highlight');
+        });
+      }
+      atualizarStatus();
+    }
+
+    // Atualizar o Status do Jogo
+    function atualizarStatus(mensagem) {
+      if (mensagem) {
+        elementoStatus.textContent = mensagem;
+        return;
+      }
+      if (jogoFinalizado) {
+        elementoStatus.textContent = `Fim do Jogo: ${jogadorAtual === 'white' ? 'Pretas' : 'Brancas'} venceram!`;
+      } else {
+        elementoStatus.textContent = `Turno: ${jogadorAtual === 'white' ? 'Brancas' : 'Pretas'}`;
+      }
+    }
+
+    // Manipular Cliques nas Casas
+    function lidarCliqueCasa(x, y) {
+      if (jogoFinalizado) return;
+
+      const peca = tabuleiro[x][y];
+      if (pecaSelecionada) {
+        const [sx, sy] = pecaSelecionada;
+        const movimentosPossiveis = obterMovimentosPossiveis(pecaSelecionada, tabuleiro);
+        if (movimentosPossiveis.some(move => move[0] === x && move[1] === y)) {
+          realizarMovimento(pecaSelecionada, [x, y]);
+          pecaSelecionada = null;
+          atualizarInterfaceTabuleiro();
+          setTimeout(() => {
+            if (!jogoFinalizado && jogadorAtual === 'black') {
+              jogadaIA();
+            }
+          }, 300); // Tempo reduzido para 300ms
+          return;
+        }
+      }
+
+      if (peca && ehPecaDoJogador(peca, jogadorAtual)) {
+        pecaSelecionada = [x, y];
+        atualizarInterfaceTabuleiro();
+      }
+    }
+
+    // Verificar se a peça pertence ao jogador atual
+    function ehPecaDoJogador(peca, jogador) {
+      if (jogador === 'white') {
+        return peca === peca.toUpperCase();
+      } else {
+        return peca === peca.toLowerCase();
+      }
+    }
+
+    // Verificar se a peça é do oponente
+    function ehPecaDoOponente(peca, isWhite) {
+      if (isWhite) {
+        return peca === peca.toLowerCase();
+      } else {
+        return peca === peca.toUpperCase();
+      }
+    }
+
+    // Gerar Movimentos Possíveis para uma Peça
+    function obterMovimentosPossiveis(posicao, estadoTabuleiro, checkKingSafety = true) {
+      const [x, y] = posicao;
+      const peca = estadoTabuleiro[x][y];
+      if (!peca) return [];
+      const movimentos = [];
+      const direcoes = {
+        'P': [[-1, 0], [-1, -1], [-1, 1]],
+        'p': [[1, 0], [1, -1], [1, 1]],
+        'R': [[1,0], [-1,0], [0,1], [0,-1]],
+        'B': [[1,1], [1,-1], [-1,1], [-1,-1]],
+        'Q': [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]],
+        'K': [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]],
+        'N': [[2,1], [1,2], [-1,2], [-2,1], [-2,-1], [-1,-2], [1,-2], [2,-1]],
+      };
+
+      const tipoPeca = peca.toUpperCase();
+      const isWhite = peca === peca.toUpperCase();
+      const oponente = isWhite ? 'black' : 'white';
+
+      if (tipoPeca === 'P') {
+        // Movimento para frente
+        const frente = direcoes['P'][0];
+        const fx = x + frente[0];
+        const fy = y + frente[1];
+        if (ehPosicaoValida(fx, fy) && !estadoTabuleiro[fx][fy]) {
+          movimentos.push([fx, fy]);
+          // Primeiro movimento pode avançar duas casas
+          if ((isWhite && x === 6) || (!isWhite && x === 1)) {
+            const duplaFrente = x + frente[0] * 2;
+            if (ehPosicaoValida(duplaFrente, fy) && !estadoTabuleiro[duplaFrente][fy]) {
+              movimentos.push([duplaFrente, fy]);
+            }
+          }
+        }
+        // Capturas
+        direcoes['P'].slice(1).forEach(dir => {
+          const cx = x + dir[0];
+          const cy = y + dir[1];
+          if (ehPosicaoValida(cx, cy) && estadoTabuleiro[cx][cy] && ehPecaDoOponente(estadoTabuleiro[cx][cy], isWhite)) {
+            movimentos.push([cx, cy]);
+          }
+        });
+        // En Passant (simplificado: não implementado)
+      } else if (tipoPeca === 'N') {
+        direcoes['N'].forEach(dir => {
+          const nx = x + dir[0];
+          const ny = y + dir[1];
+          if (ehPosicaoValida(nx, ny) && (!estadoTabuleiro[nx][ny] || ehPecaDoOponente(estadoTabuleiro[nx][ny], isWhite))) {
+            movimentos.push([nx, ny]);
+          }
+        });
+      } else if (['R', 'B', 'Q'].includes(tipoPeca)) {
+        const dirs = direcoes[tipoPeca];
+        dirs.forEach(dir => {
+          let nx = x + dir[0];
+          let ny = y + dir[1];
+          while (ehPosicaoValida(nx, ny)) {
+            if (!estadoTabuleiro[nx][ny]) {
+              movimentos.push([nx, ny]);
+            } else {
+              if (ehPecaDoOponente(estadoTabuleiro[nx][ny], isWhite)) {
+                movimentos.push([nx, ny]);
+              }
+              break;
+            }
+            nx += dir[0];
+            ny += dir[1];
+          }
+        });
+      } else if (tipoPeca === 'K') {
+        direcoes['K'].forEach(dir => {
+          const kx = x + dir[0];
+          const ky = y + dir[1];
+          if (ehPosicaoValida(kx, ky) && (!estadoTabuleiro[kx][ky] || ehPecaDoOponente(estadoTabuleiro[kx][ky], isWhite))) {
+            movimentos.push([kx, ky]);
+          }
+        });
+        // Roque (simplificado: não implementado)
+      }
+
+      // Filtrar movimentos que deixam o rei em xeque, se necessário
+      if (checkKingSafety) {
+        const movimentosLegais = movimentos.filter(move => {
+          const novoTabuleiro = clonarTabuleiro(estadoTabuleiro);
+          novoTabuleiro[move[0]][move[1]] = novoTabuleiro[x][y];
+          novoTabuleiro[x][y] = null;
+          // Verificar se após o movimento, o rei ainda está seguro
+          const jogador = isWhite ? 'white' : 'black';
+          return !estaEmXeque(novoTabuleiro, jogador);
+        });
+        return movimentosLegais;
+      } else {
+        return movimentos;
+      }
+    }
+
+    // Clonar o Tabuleiro para Simulações
+    function clonarTabuleiro(estadoTabuleiro) {
+      return estadoTabuleiro.map(linha => linha.slice());
+    }
+
+    // Verificar se a posição é válida no tabuleiro
+    function ehPosicaoValida(x, y) {
+      return x >= 0 && x < 8 && y >= 0 && y < 8;
+    }
+
+    // Realizar um Movimento
+    function realizarMovimento(de, para) {
+      const [fx, fy] = de;
+      const [tx, ty] = para;
+      const pecaMovida = tabuleiro[fx][fy];
+      const pecaCapturada = tabuleiro[tx][ty];
+      tabuleiro[tx][ty] = pecaMovida;
+      tabuleiro[fx][fy] = null;
+
+      // Promoção de Peão (sempre promove para Rainha)
+      if (pecaMovida.toUpperCase() === 'P' && (tx === 0 || tx === 7)) {
+        tabuleiro[tx][ty] = pecaMovida === 'P' ? 'Q' : 'q';
+      }
+
+      historicoMovimentos.push({ de, para, peca: pecaMovida, capturada: pecaCapturada });
+      jogadorAtual = jogadorAtual === 'white' ? 'black' : 'white';
+      verificarFimDeJogo();
+    }
+
+    // Verificar se a peça é do oponente
+    function ehPecaDoOponente(peca, isWhite) {
+      if (isWhite) {
+        return peca === peca.toLowerCase();
+      } else {
+        return peca === peca.toUpperCase();
+      }
+    }
+
+    // Verificar se o Rei está em Xeque
+    function estaEmXeque(estadoTabuleiro, jogador) {
+      const rei = jogador === 'white' ? 'K' : 'k';
+      let posRei = null;
+
+      // Encontrar a posição do Rei
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          if (estadoTabuleiro[x][y] === rei) {
+            posRei = [x, y];
+            break;
+          }
+        }
+        if (posRei) break;
+      }
+
+      if (!posRei) return true; // Rei não encontrado, está em xeque
+
+      const oponente = jogador === 'white' ? 'black' : 'white';
+
+      // Iterar sobre todas as peças do oponente e verificar se alguma pode atacar o rei
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          const peca = estadoTabuleiro[x][y];
+          if (peca && ehPecaDoJogador(peca, oponente)) {
+            const movimentosAtaque = obterMovimentosPossiveis([x, y], estadoTabuleiro, false); // Passa false para não filtrar movimentos
+            if (movimentosAtaque.some(move => move[0] === posRei[0] && move[1] === posRei[1])) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    // Verificar Fim de Jogo
+    function verificarFimDeJogo() {
+      if (estaEmXeque(tabuleiro, jogadorAtual)) {
+        // Verificar se há movimentos legais
+        const todosMovimentos = gerarTodosMovimentos(tabuleiro, jogadorAtual);
+        if (todosMovimentos.length === 0) {
+          jogoFinalizado = true;
+          atualizarStatus(`Xeque-Mate! ${jogadorAtual === 'white' ? 'Pretas' : 'Brancas'} venceram!`);
+          return;
+        } else {
+          atualizarStatus(`Xeque! Turno: ${jogadorAtual === 'white' ? 'Brancas' : 'Pretas'}`);
+          return;
+        }
+      } else {
+        // Verificar empate (simplificado: não implementado)
+        atualizarStatus(`Turno: ${jogadorAtual === 'white' ? 'Brancas' : 'Pretas'}`);
+      }
+    }
+
+    // Gerar Todos os Movimentos Legais para um Jogador
+    function gerarTodosMovimentos(estadoTabuleiro, jogador) {
+      const movimentos = [];
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          const peca = estadoTabuleiro[x][y];
+          if (peca && ehPecaDoJogador(peca, jogador)) {
+            const movimentosPeca = obterMovimentosPossiveis([x, y], estadoTabuleiro);
+            movimentosPeca.forEach(move => {
+              movimentos.push({ de: [x, y], para: move });
+            });
+          }
+        }
+      }
+      return movimentos;
+    }
+
+    // Implementação da IA
+    function jogadaIA() {
+      if (jogoFinalizado) return;
+      dificuldade = selecaoDificuldade.value;
+      let movimento;
+      if (dificuldade === 'easy') {
+        movimento = obterMovimentoAleatorio(tabuleiro, 'black');
+      } else if (dificuldade === 'medium') {
+        movimento = obterMovimentoMinimax(tabuleiro, 3, 'black');
+      } else if (dificuldade === 'hard') {
+        movimento = obterMovimentoMinimax(tabuleiro, 4, 'black'); // Profundidade reduzida para otimizar
+      }
+      if (movimento) {
+        realizarMovimento(movimento.de, movimento.para);
+        atualizarInterfaceTabuleiro();
+        setTimeout(() => {
+          if (!jogoFinalizado && jogadorAtual === 'black') {
+            jogadaIA();
+          }
+        }, 300); // Tempo reduzido para 300ms
+      }
+    }
+
+    // IA Nível Fácil: Movimento Aleatório
+    function obterMovimentoAleatorio(estadoTabuleiro, jogador) {
+      const todosMovimentos = gerarTodosMovimentos(estadoTabuleiro, jogador);
+      if (todosMovimentos.length === 0) return null;
+      return todosMovimentos[Math.floor(Math.random() * todosMovimentos.length)];
+    }
+
+    // IA Nível Médio e Difícil: Minimax com Poda Alfa-Beta
+    function obterMovimentoMinimax(estadoTabuleiro, profundidade, jogador) {
+      const todosMovimentos = gerarTodosMovimentos(estadoTabuleiro, jogador);
+      if (todosMovimentos.length === 0) return null;
+
+      let melhorMovimento = null;
+      let melhorValor = jogador === 'black' ? Infinity : -Infinity;
+
+      for (const movimento of todosMovimentos) {
+        const novoTabuleiro = clonarTabuleiro(estadoTabuleiro);
+        novoTabuleiro[movimento.para[0]][movimento.para[1]] = novoTabuleiro[movimento.de[0]][movimento.de[1]];
+        novoTabuleiro[movimento.de[0]][movimento.de[1]] = null;
+        const valorTabuleiro = minimax(novoTabuleiro, profundidade - 1, -Infinity, Infinity, jogador === 'black' ? 'white' : 'black');
+
+        if (jogador === 'black') {
+          if (valorTabuleiro < melhorValor) {
+            melhorValor = valorTabuleiro;
+            melhorMovimento = movimento;
+          }
+        } else {
+          if (valorTabuleiro > melhorValor) {
+            melhorValor = valorTabuleiro;
+            melhorMovimento = movimento;
+          }
+        }
+      }
+
+      return melhorMovimento;
+    }
+
+    function minimax(estadoTabuleiro, profundidade, alfa, beta, jogador) {
+      if (profundidade === 0) {
+        return avaliarTabuleiro(estadoTabuleiro);
+      }
+
+      if (jogador === 'white') {
+        let maxEval = -Infinity;
+        const todosMovimentos = gerarTodosMovimentos(estadoTabuleiro, 'white');
+        if (todosMovimentos.length === 0) return avaliarTabuleiro(estadoTabuleiro);
+        for (const movimento of todosMovimentos) {
+          const novoTabuleiro = clonarTabuleiro(estadoTabuleiro);
+          novoTabuleiro[movimento.para[0]][movimento.para[1]] = novoTabuleiro[movimento.de[0]][movimento.de[1]];
+          novoTabuleiro[movimento.de[0]][movimento.de[1]] = null;
+          const aval = minimax(novoTabuleiro, profundidade - 1, alfa, beta, 'black');
+          maxEval = Math.max(maxEval, aval);
+          alfa = Math.max(alfa, aval);
+          if (beta <= alfa) break;
+        }
+        return maxEval;
+      } else {
+        let minEval = Infinity;
+        const todosMovimentos = gerarTodosMovimentos(estadoTabuleiro, 'black');
+        if (todosMovimentos.length === 0) return avaliarTabuleiro(estadoTabuleiro);
+        for (const movimento of todosMovimentos) {
+          const novoTabuleiro = clonarTabuleiro(estadoTabuleiro);
+          novoTabuleiro[movimento.para[0]][movimento.para[1]] = novoTabuleiro[movimento.de[0]][movimento.de[1]];
+          novoTabuleiro[movimento.de[0]][movimento.de[1]] = null;
+          const aval = minimax(novoTabuleiro, profundidade - 1, alfa, beta, 'white');
+          minEval = Math.min(minEval, aval);
+          beta = Math.min(beta, aval);
+          if (beta <= alfa) break;
+        }
+        return minEval;
+      }
+    }
+
+    // Avaliação do Tabuleiro
+    function avaliarTabuleiro(estadoTabuleiro) {
+      const valorPecas = {
+        'P': 10, 'p': -10,
+        'N': 30, 'n': -30,
+        'B': 30, 'b': -30,
+        'R': 50, 'r': -50,
+        'Q': 90, 'q': -90,
+        'K': 900, 'k': -900,
+      };
+      let pontuacao = 0;
+      for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+          const peca = estadoTabuleiro[x][y];
+          if (peca) {
+            pontuacao += valorPecas[peca] || 0;
+          }
+        }
+      }
+      return pontuacao;
+    }
+
+    // Reiniciar o Jogo
+    botaoReiniciar.addEventListener('click', () => {
+      tabuleiro = JSON.parse(JSON.stringify(tabuleiroInicial));
+      pecaSelecionada = null;
+      jogadorAtual = 'white';
+      jogoFinalizado = false;
+      historicoMovimentos = [];
+      atualizarInterfaceTabuleiro();
+    });
+
+    // Inicialização
+    inicializarTabuleiro();
+  </script>
+</body>
+</html>
