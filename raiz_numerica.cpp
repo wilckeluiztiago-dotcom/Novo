@@ -1,5 +1,5 @@
 // raiz_numerica.cpp
-// Autor: Luiz Tiago Wilcke (LT) + ChatGPT
+// Autor: Luiz Tiago Wilcke (LT) 
 // Métodos numéricos "na unha" para extrair raízes: quadrada e n-ésima
 // - Sem usar std::sqrt (apenas aritmética básica)
 // - Variáveis em português, comentários didáticos
