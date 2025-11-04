@@ -1,15 +1,5 @@
 # Jogo de Damas 8x8 com IA Super Sofisticada (Pygame)
 # Autor: Luiz Tiago Wilcke (LT)
-# Linguagem: Python 3.x — variáveis em português
-# Recursos de IA: iterative deepening, alpha-beta (negamax), quiescence,
-# ordenação por capturas/TT/killer/history, Tabela de Transposição (Zobrist),
-# avaliação material+mobilidade+central, detecção de fim, múltiplas capturas.
-# Desenho completo em Pygame (sem imagens externas): peças brancas/pretas, damas com coroa.
-# 
-# Dependência: pygame
-#  pip install pygame
-# Execução:
-#  python damas_python_IA_LT.py
 
 import math
 import time
