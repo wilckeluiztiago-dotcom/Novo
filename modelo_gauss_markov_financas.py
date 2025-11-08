@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Modelo Linear Gauss–Markov em Finanças — Script Reprodutível
+Modelo Linear Gauss–Markov em Finanças 
 Autor: Luiz Tiago Wilcke (LT) 
 
 Executa:
