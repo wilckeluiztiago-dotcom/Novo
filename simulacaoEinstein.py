@@ -1,5 +1,5 @@
 # ============================================================
-# Relatividade no Sistema Solar — Tkinter + Pygame (corrigido)
+# Relatividade no Sistema Solar — Tkinter + Pygame 
 # Autor: Luiz Tiago Wilcke (LT)
 # Descrição:
 #   • UI em Tkinter para configurar parâmetros (massas, distância, velocidade,
