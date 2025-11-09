@@ -1,10 +1,6 @@
 # ============================================================
 # Preço do Petróleo (WTI) — LSTM + Atenção (PyTorch, compatível)
 # Autor: Luiz Tiago Wilcke (LT)
-# Correções:
-#   - Removido 'verbose' de ReduceLROnPlateau (versões antigas do PyTorch)
-#   - Print manual quando LR reduz
-#   - Early stopping robusto (inicializa melhor_peso)
 # ============================================================
 
 import os
