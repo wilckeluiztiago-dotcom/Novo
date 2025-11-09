@@ -6,7 +6,6 @@
 #   - Simula uma PDE de vorticidade 2D (advecção + difusão + fonte CAPE/cisalhamento).
 #   - (Opcional) Treina uma CNN tipo PINN para aprender dζ/dt penalizando o resíduo físico.
 #   - Gera gráficos (CAPE, cisalhamento, vorticidade t0/tf, energia) e CSVs.
-#   - Todas as variáveis e comentários estão em português.
 # Dependências mínimas: numpy, matplotlib, pandas
 # O PINN usa PyTorch (opcional). Caso não tenha, a parte neural é ignorada.
 # ============================================================
