@@ -1,5 +1,5 @@
 # ============================================
-# Céu Azul — Espalhamento de Rayleigh (1 espalhamento)
+# Espalhamento de Rayleigh 
 # Autor: Luiz Tiago Wilcke (LT)
 # ============================================
 
