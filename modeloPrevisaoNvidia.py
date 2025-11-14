@@ -143,7 +143,7 @@ def construir_features_estocasticas(
       - termo de Itô (μ_t - 0.5 σ_t^2)
       - índice de tempo normalizado
     """
-    # >>> AQUI está a robustez que evita o seu erro <<<
+  
     s = _forcar_series(serie_precos)
     s = s.dropna()
 
