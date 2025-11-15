@@ -1,6 +1,6 @@
 # ============================================================
 # Criptografia de Curvas Elípticas 
-# Autor: Luiz Tiago Wilcke (LT) 
+# Autor: Luiz Tiago Wilcke 
 # ============================================================
 # Recursos:
 #  - Curva elíptica sobre corpo primo F_p
