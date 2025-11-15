@@ -3,10 +3,6 @@
 # Autor: Luiz Tiago Wilcke (LT)
 # ============================================================
 
-# ------------------------------------------------------------
-# 1) Dados de exemplo dos principais índices (substitua por dados reais)
-# ------------------------------------------------------------
-
 # Datas simuladas (10 dias úteis)
 datas <- as.Date("2025-01-02") + 0:9
 
