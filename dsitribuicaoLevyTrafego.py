@@ -27,7 +27,6 @@
 #       * Simulação de um link com mistura de tráfego Lévy + Gaussiano.
 #       * Simulação de uma cadeia multi-hop de links.
 #       * Cálculo de métricas de congestionamento.
-#       * Gráficos ilustrativos (opcional).
 # ============================================================
 
 from dataclasses import dataclass
