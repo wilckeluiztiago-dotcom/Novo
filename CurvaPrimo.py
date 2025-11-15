@@ -296,10 +296,6 @@ def verificar_assinatura(
     return x_verif == r
 
 
-# ------------------------------------------------------------
-# 7. Demonstração de uso
-# ------------------------------------------------------------
-
 def demonstracao():
     print("=== DEMONSTRAÇÃO ECC (Curva secp256k1 didática) ===")
     curva = curva_secp256k1
