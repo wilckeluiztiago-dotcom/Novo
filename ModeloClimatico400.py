@@ -1,6 +1,6 @@
 # ============================================================
 # Modelo Climático com Controle Ótimo via HJB
-# Autor: Luiz Tiago Wilcke (LT)
+# Autor: Luiz Tiago Wilcke
 # ============================================================
 
 from dataclasses import dataclass
