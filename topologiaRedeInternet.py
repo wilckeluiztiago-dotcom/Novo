@@ -1,6 +1,6 @@
 # ============================================================
 # TDA em Tráfego de Rede — Detecção Topológica de Anomalias
-# Autor: Luiz Tiago Wilcke (LT)
+# Autor: Luiz Tiago Wilcke 
 # ============================================================
 
 import math
