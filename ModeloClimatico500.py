@@ -1,5 +1,5 @@
 # ============================================================
-# Modelo Super Simplificado de Aquecimento Global (EBM 2-Caixas)
+# Modelo  Global (EBM 2-Caixas)
 #   - Equações diferenciais ordinárias (EDOs)
 #   - Constantes físicas com alta precisão
 #   - Forçamento radiativo por CO₂ (ΔF = 5.35 ln(C/C0))
