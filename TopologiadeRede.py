@@ -411,10 +411,6 @@ def gerar_precos_sinteticos(
     df_precos = pd.DataFrame(precos, index=datas, columns=colunas)
     return df_precos
 
-
-# ------------------------------------------------------------
-# 4) Exemplo de uso completo
-# ------------------------------------------------------------
 if __name__ == "__main__":
     # 1) Gera dados sintéticos (substitua por dados reais via CSV/Yahoo etc.)
     precos = gerar_precos_sinteticos(n_ativos=10, n_passos=400)
