@@ -262,10 +262,6 @@ def plotar_resultados(z: np.ndarray, perfis: np.ndarray, tempos: np.ndarray):
     plt.show()
 
 
-# ------------------------------------------------------------
-# 8. Exemplo de uso
-# ------------------------------------------------------------
-
 if __name__ == "__main__":
     # Propriedades típicas de um petróleo pesado (valores aproximados)
     fluido_petroleo = ParametrosFluido(
