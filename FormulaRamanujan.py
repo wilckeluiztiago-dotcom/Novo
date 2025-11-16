@@ -10,7 +10,6 @@
 # Nesta implementação:
 #   - Usamos o módulo 'decimal' para ter alta precisão (1000+ dígitos)
 #   - Somamos a série até que o termo seja menor que uma tolerância-alvo
-#   - Utilizamos variáveis em português e uma estrutura mais sofisticada
 # ============================================================
 
 from dataclasses import dataclass
