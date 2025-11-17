@@ -337,11 +337,6 @@ def avaliar_modelo(
             saida_np = saida.cpu().numpy()
             y_np = batch_y.cpu().numpy()
 
-            # Como o scaler foi aplicado no log-preço, precisamos inverter
-            # mas aqui usaremos diretamente exp() do log sem reusar scaler,
-            # assumindo que alvo já é log-preço bruto (sem normalização).
-            # Se você escalar o log-preço, adapte conforme sua pipeline.
-            # Neste exemplo, NÃO escalamos o alvo para simplificar:
             previsoes.append(np.exp(saida_np))
             verdadeiros.append(np.exp(y_np))
 
