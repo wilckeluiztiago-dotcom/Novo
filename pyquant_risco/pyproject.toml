@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyquant-risco"
+version = "0.1.0"
+description = "Motor avançado de simulação de risco (SDE + Deep Learning) em Python."
+authors = [
+  { name = "Luiz Tiago Wilcke", email = "wilckeluiztiago@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["risk", "quantitative finance", "SDE", "fastapi", "pytorch", "typer"]
+license = { text = "MIT" }
+
+dependencies = [
+  "numpy>=1.23",
+  "pandas>=2.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "typer[all]>=0.12",
+  "pydantic>=2.0",
+  "matplotlib>=3.8",
+  "python-dotenv>=1.0",
+  "scipy>=1.11"
+]
+
+[project.optional-dependencies]
+dl = ["torch>=2.0"]
+dev = [
+  "pytest>=7.0",
+  "mypy>=1.0",
+  "black>=24.0",
+  "isort>=5.12"
+]
+
+[project.scripts]
+pyquant-risco = "pyquant_risco.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

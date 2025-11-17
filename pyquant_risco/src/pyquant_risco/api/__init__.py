@@ -1,0 +1,1 @@
+# subpacote da API FastAPI
