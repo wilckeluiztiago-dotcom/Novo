@@ -1,6 +1,5 @@
 import pygame
 import sys
-import math
 import time
 import random
 from dataclasses import dataclass
@@ -149,6 +148,14 @@ VALOR_PECA = {
 }
 
 # ----------------------------
+# Direitos de roque (CORRIGIDOS)
+# ----------------------------
+ROQUE_BRANCO_REI = 1   # roque pequeno branco
+ROQUE_BRANCO_DAMA = 2  # roque grande branco
+ROQUE_PRETO_REI = 4    # roque pequeno preto
+ROQUE_PRETO_DAMA = 8   # roque grande preto
+
+# ----------------------------
 # Hashing Zobrist
 # ----------------------------
 import random as _random
@@ -196,18 +203,24 @@ class Historico:
     relogio_meia_jogada: int
     hash_anterior: int
 
-# codificamos roques como bits: 1=rei branco, 2=dama branca, 4=rei preto, 8=dama preta
-def definir_bit(mascara: int, bit: int, valor: bool) -> int:
+def definir_bit(mascara: int, bitmask: int, valor: bool) -> int:
+    """Liga/desliga um bit específico (bitmask = 1,2,4,8...)."""
     if valor:
-        return mascara | bit
+        return mascara | bitmask
     else:
-        return mascara & ~bit
+        return mascara & ~bitmask
 
+# ----------------------------
+# Estado do jogo
+# ----------------------------
 class Estado:
     def __init__(self):
         self.tabuleiro = [[VAZIO for _ in range(8)] for _ in range(8)]
         self.brancas_jogam = True
-        self.direitos_roque = 0b1111
+        self.direitos_roque = (
+            ROQUE_BRANCO_REI | ROQUE_BRANCO_DAMA |
+            ROQUE_PRETO_REI | ROQUE_PRETO_DAMA
+        )
         self.coluna_en_passant = -1
         self.relogio_meia_jogada = 0
         self.numero_jogada_completa = 1
@@ -222,12 +235,12 @@ class Estado:
             TORRE_PRETA, CAVALO_PRETO, BISPO_PRETO, DAMA_PRETA,
             REI_PRETO, BISPO_PRETO, CAVALO_PRETO, TORRE_PRETA
         ]
-        self.tabuleiro[1] = [PEAO_PRETO]*8
+        self.tabuleiro[1] = [PEAO_PRETO] * 8
         # Casas vazias
         for linha in range(2, 6):
-            self.tabuleiro[linha] = [VAZIO]*8
+            self.tabuleiro[linha] = [VAZIO] * 8
         # Brancas
-        self.tabuleiro[6] = [PEAO_BRANCO]*8
+        self.tabuleiro[6] = [PEAO_BRANCO] * 8
         self.tabuleiro[7] = [
             TORRE_BRANCA, CAVALO_BRANCO, BISPO_BRANCO, DAMA_BRANCA,
             REI_BRANCO, BISPO_BRANCO, CAVALO_BRANCO, TORRE_BRANCA
@@ -285,7 +298,6 @@ class Estado:
                 break
         if linha_rei == -1:
             return False
-
         return self._casa_atacada(linha_rei, coluna_rei, por_brancas=not brancas)
 
     def _casa_atacada(self, linha: int, coluna: int, por_brancas: bool) -> bool:
@@ -305,8 +317,8 @@ class Estado:
 
         # Cavalos
         movimentos_cavalo = [
-            (-2,-1),(-2,1),(-1,-2),(-1,2),
-            (1,-2),(1,2),(2,-1),(2,1)
+            (-2, -1), (-2, 1), (-1, -2), (-1, 2),
+            (1, -2), (1, 2), (2, -1), (2, 1)
         ]
         alvo_cavalo = CAVALO_BRANCO if por_brancas else CAVALO_PRETO
         for dl, dc in movimentos_cavalo:
@@ -317,7 +329,7 @@ class Estado:
         # Bispos / Damas (diagonais)
         alvo_bispo = BISPO_BRANCO if por_brancas else BISPO_PRETO
         alvo_dama = DAMA_BRANCA if por_brancas else DAMA_PRETA
-        for dl, dc in [(-1,-1),(-1,1),(1,-1),(1,1)]:
+        for dl, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
             lr, cr = linha + dl, coluna + dc
             while self.dentro(lr, cr):
                 peca = self.tabuleiro[lr][cr]
@@ -330,7 +342,7 @@ class Estado:
 
         # Torres / Damas (retas)
         alvo_torre = TORRE_BRANCA if por_brancas else TORRE_PRETA
-        for dl, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+        for dl, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             lr, cr = linha + dl, coluna + dc
             while self.dentro(lr, cr):
                 peca = self.tabuleiro[lr][cr]
@@ -343,8 +355,8 @@ class Estado:
 
         # Rei
         alvo_rei = REI_BRANCO if por_brancas else REI_PRETO
-        for dl in [-1,0,1]:
-            for dc in [-1,0,1]:
+        for dl in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
                 if dl == 0 and dc == 0:
                     continue
                 lr, cr = linha + dl, coluna + dc
@@ -411,11 +423,9 @@ class Estado:
                         Movimento((linha, coluna), (linha_frente, coluna), peca, VAZIO, nova)
                     )
             else:
-                movimentos.append(
-                    Movimento((linha, coluna), (linha_frente, coluna), peca)
-                )
+                movimentos.append(Movimento((linha, coluna), (linha_frente, coluna), peca))
             if linha == linha_inicial:
-                linha_dupla = linha + 2*direcao
+                linha_dupla = linha + 2 * direcao
                 if self.tabuleiro[linha_dupla][coluna] == VAZIO:
                     movimentos.append(
                         Movimento((linha, coluna), (linha_dupla, coluna), peca)
@@ -463,8 +473,8 @@ class Estado:
 
     def _movimentos_cavalo(self, linha: int, coluna: int, peca: int, movimentos: List[Movimento]):
         deslocamentos = [
-            (-2,-1),(-2,1),(-1,-2),(-1,2),
-            (1,-2),(1,2),(2,-1),(2,1)
+            (-2, -1), (-2, 1), (-1, -2), (-1, 2),
+            (1, -2), (1, 2), (2, -1), (2, 1)
         ]
         for dl, dc in deslocamentos:
             lr, cr = linha + dl, coluna + dc
@@ -472,42 +482,32 @@ class Estado:
                 continue
             alvo = self.tabuleiro[lr][cr]
             if alvo == VAZIO or sinal(alvo) != sinal(peca):
-                movimentos.append(
-                    Movimento((linha, coluna), (lr, cr), peca, alvo)
-                )
+                movimentos.append(Movimento((linha, coluna), (lr, cr), peca, alvo))
 
     def _movimentos_bispo(self, linha: int, coluna: int, peca: int, movimentos: List[Movimento]):
-        for dl, dc in [(-1,-1),(-1,1),(1,-1),(1,1)]:
+        for dl, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
             lr, cr = linha + dl, coluna + dc
             while self.dentro(lr, cr):
                 alvo = self.tabuleiro[lr][cr]
                 if alvo == VAZIO:
-                    movimentos.append(
-                        Movimento((linha, coluna), (lr, cr), peca)
-                    )
+                    movimentos.append(Movimento((linha, coluna), (lr, cr), peca))
                 else:
                     if sinal(alvo) != sinal(peca):
-                        movimentos.append(
-                            Movimento((linha, coluna), (lr, cr), peca, alvo)
-                        )
+                        movimentos.append(Movimento((linha, coluna), (lr, cr), peca, alvo))
                     break
                 lr += dl
                 cr += dc
 
     def _movimentos_torre(self, linha: int, coluna: int, peca: int, movimentos: List[Movimento]):
-        for dl, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+        for dl, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             lr, cr = linha + dl, coluna + dc
             while self.dentro(lr, cr):
                 alvo = self.tabuleiro[lr][cr]
                 if alvo == VAZIO:
-                    movimentos.append(
-                        Movimento((linha, coluna), (lr, cr), peca)
-                    )
+                    movimentos.append(Movimento((linha, coluna), (lr, cr), peca))
                 else:
                     if sinal(alvo) != sinal(peca):
-                        movimentos.append(
-                            Movimento((linha, coluna), (lr, cr), peca, alvo)
-                        )
+                        movimentos.append(Movimento((linha, coluna), (lr, cr), peca, alvo))
                     break
                 lr += dl
                 cr += dc
@@ -517,8 +517,8 @@ class Estado:
         self._movimentos_torre(linha, coluna, peca, movimentos)
 
     def _movimentos_rei(self, linha: int, coluna: int, peca: int, movimentos: List[Movimento]):
-        for dl in [-1,0,1]:
-            for dc in [-1,0,1]:
+        for dl in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
                 if dl == 0 and dc == 0:
                     continue
                 lr, cr = linha + dl, coluna + dc
@@ -526,53 +526,51 @@ class Estado:
                     continue
                 alvo = self.tabuleiro[lr][cr]
                 if alvo == VAZIO or sinal(alvo) != sinal(peca):
-                    movimentos.append(
-                        Movimento((linha, coluna), (lr, cr), peca, alvo)
-                    )
+                    movimentos.append(Movimento((linha, coluna), (lr, cr), peca, alvo))
 
-        # roques (baseado na cor do rei)
+        # roques (com direitos de roque CORRETOS)
         if peca == REI_BRANCO and linha == 7 and coluna == 4:
             # roque pequeno branco
-            if (self.direitos_roque & 0b0001) and \
+            if (self.direitos_roque & ROQUE_BRANCO_REI) and \
                self.tabuleiro[7][5] == VAZIO and self.tabuleiro[7][6] == VAZIO:
-                if not self._casa_atacada(7,4,False) and \
-                   not self._casa_atacada(7,5,False) and \
-                   not self._casa_atacada(7,6,False):
+                if not self._casa_atacada(7, 4, False) and \
+                   not self._casa_atacada(7, 5, False) and \
+                   not self._casa_atacada(7, 6, False):
                     movimentos.append(
-                        Movimento((7,4),(7,6),peca,VAZIO,roque=True)
+                        Movimento((7, 4), (7, 6), peca, VAZIO, roque=True)
                     )
             # roque grande branco
-            if (self.direitos_roque & 0b0010) and \
+            if (self.direitos_roque & ROQUE_BRANCO_DAMA) and \
                self.tabuleiro[7][1] == VAZIO and \
                self.tabuleiro[7][2] == VAZIO and \
                self.tabuleiro[7][3] == VAZIO:
-                if not self._casa_atacada(7,4,False) and \
-                   not self._casa_atacada(7,3,False) and \
-                   not self._casa_atacada(7,2,False):
+                if not self._casa_atacada(7, 4, False) and \
+                   not self._casa_atacada(7, 3, False) and \
+                   not self._casa_atacada(7, 2, False):
                     movimentos.append(
-                        Movimento((7,4),(7,2),peca,VAZIO,roque=True,roque_longo=True)
+                        Movimento((7, 4), (7, 2), peca, VAZIO, roque=True, roque_longo=True)
                     )
 
         if peca == REI_PRETO and linha == 0 and coluna == 4:
             # roque pequeno preto
-            if (self.direitos_roque & 0b0100) and \
+            if (self.direitos_roque & ROQUE_PRETO_REI) and \
                self.tabuleiro[0][5] == VAZIO and self.tabuleiro[0][6] == VAZIO:
-                if not self._casa_atacada(0,4,True) and \
-                   not self._casa_atacada(0,5,True) and \
-                   not self._casa_atacada(0,6,True):
+                if not self._casa_atacada(0, 4, True) and \
+                   not self._casa_atacada(0, 5, True) and \
+                   not self._casa_atacada(0, 6, True):
                     movimentos.append(
-                        Movimento((0,4),(0,6),peca,VAZIO,roque=True)
+                        Movimento((0, 4), (0, 6), peca, VAZIO, roque=True)
                     )
             # roque grande preto
-            if (self.direitos_roque & 0b1000) and \
+            if (self.direitos_roque & ROQUE_PRETO_DAMA) and \
                self.tabuleiro[0][1] == VAZIO and \
                self.tabuleiro[0][2] == VAZIO and \
                self.tabuleiro[0][3] == VAZIO:
-                if not self._casa_atacada(0,4,True) and \
-                   not self._casa_atacada(0,3,True) and \
-                   not self._casa_atacada(0,2,True):
+                if not self._casa_atacada(0, 4, True) and \
+                   not self._casa_atacada(0, 3, True) and \
+                   not self._casa_atacada(0, 2, True):
                     movimentos.append(
-                        Movimento((0,4),(0,2),peca,VAZIO,roque=True,roque_longo=True)
+                        Movimento((0, 4), (0, 2), peca, VAZIO, roque=True, roque_longo=True)
                     )
 
     # ----------------------------
@@ -581,21 +579,20 @@ class Estado:
     def fazer_movimento(self, movimento: Movimento):
         linha_origem, coluna_origem = movimento.origem
         linha_destino, coluna_destino = movimento.destino
-        peca_original = movimento.peca  # peça que saiu da origem
-        peca_destino_original = self.tabuleiro[linha_destino][coluna_destino]
-        capturada = peca_destino_original
+        peca_original = movimento.peca
+        capturada = self.tabuleiro[linha_destino][coluna_destino]
 
         direitos_roque_antigos = self.direitos_roque
         coluna_ep_antiga = self.coluna_en_passant
         relogio_meia_jogada_antigo = self.relogio_meia_jogada
         hash_antigo = self.hash_atual
 
-        # hash: remover peças da origem e peça capturada
+        # hash: remover peça de origem e capturada (se existir)
         self._aplicar_hash_peca(linha_origem, coluna_origem, peca_original)
         if capturada != VAZIO:
             self._aplicar_hash_peca(linha_destino, coluna_destino, capturada)
 
-        # meia jogada (regra dos 50 lances)
+        # meia jogada
         if abs(peca_original) == 1 or capturada != VAZIO:
             self.relogio_meia_jogada = 0
         else:
@@ -616,20 +613,20 @@ class Estado:
         self.tabuleiro[linha_origem][coluna_origem] = VAZIO
         peca_final = movimento.promocao if movimento.promocao != VAZIO else peca_original
         self.tabuleiro[linha_destino][coluna_destino] = peca_final
-
-        # hash da peça movida/promoção
         self._aplicar_hash_peca(linha_destino, coluna_destino, peca_final)
 
-        # roques (mover a torre correta com base na cor do rei)
+        # roques (mexer a torre certa)
         if movimento.roque:
             if peca_original == REI_BRANCO:
                 linha_roque = 7
                 if movimento.roque_longo:
+                    # torre de a1 para d1
                     self._aplicar_hash_peca(linha_roque, 0, TORRE_BRANCA)
                     self.tabuleiro[linha_roque][0] = VAZIO
                     self.tabuleiro[linha_roque][3] = TORRE_BRANCA
                     self._aplicar_hash_peca(linha_roque, 3, TORRE_BRANCA)
                 else:
+                    # torre de h1 para f1
                     self._aplicar_hash_peca(linha_roque, 7, TORRE_BRANCA)
                     self.tabuleiro[linha_roque][7] = VAZIO
                     self.tabuleiro[linha_roque][5] = TORRE_BRANCA
@@ -637,45 +634,47 @@ class Estado:
             elif peca_original == REI_PRETO:
                 linha_roque = 0
                 if movimento.roque_longo:
+                    # torre de a8 para d8
                     self._aplicar_hash_peca(linha_roque, 0, TORRE_PRETA)
                     self.tabuleiro[linha_roque][0] = VAZIO
                     self.tabuleiro[linha_roque][3] = TORRE_PRETA
                     self._aplicar_hash_peca(linha_roque, 3, TORRE_PRETA)
                 else:
+                    # torre de h8 para f8
                     self._aplicar_hash_peca(linha_roque, 7, TORRE_PRETA)
                     self.tabuleiro[linha_roque][7] = VAZIO
                     self.tabuleiro[linha_roque][5] = TORRE_PRETA
                     self._aplicar_hash_peca(linha_roque, 5, TORRE_PRETA)
 
-        # perda de direitos de roque ao mover REI/TORRE (usar peça original)
+        # perda de direitos de roque ao mover REI/TORRE
         if peca_original == REI_BRANCO:
-            self.direitos_roque = definir_bit(self.direitos_roque, 0, False)
-            self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
+            self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_REI, False)
+            self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_DAMA, False)
         elif peca_original == REI_PRETO:
-            self.direitos_roque = definir_bit(self.direitos_roque, 2, False)
-            self.direitos_roque = definir_bit(self.direitos_roque, 3, False)
+            self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_REI, False)
+            self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_DAMA, False)
         elif peca_original == TORRE_BRANCA:
             if linha_origem == 7 and coluna_origem == 0:
-                self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_DAMA, False)
             elif linha_origem == 7 and coluna_origem == 7:
-                self.direitos_roque = definir_bit(self.direitos_roque, 0, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_REI, False)
         elif peca_original == TORRE_PRETA:
             if linha_origem == 0 and coluna_origem == 0:
-                self.direitos_roque = definir_bit(self.direitos_roque, 3, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_DAMA, False)
             elif linha_origem == 0 and coluna_origem == 7:
-                self.direitos_roque = definir_bit(self.direitos_roque, 2, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_REI, False)
 
         # se capturamos torre adversária, atualizar direitos de roque
         if capturada == TORRE_BRANCA:
             if linha_destino == 7 and coluna_destino == 0:
-                self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_DAMA, False)
             elif linha_destino == 7 and coluna_destino == 7:
-                self.direitos_roque = definir_bit(self.direitos_roque, 0, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_BRANCO_REI, False)
         elif capturada == TORRE_PRETA:
             if linha_destino == 0 and coluna_destino == 0:
-                self.direitos_roque = definir_bit(self.direitos_roque, 3, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_DAMA, False)
             elif linha_destino == 0 and coluna_destino == 7:
-                self.direitos_roque = definir_bit(self.direitos_roque, 2, False)
+                self.direitos_roque = definir_bit(self.direitos_roque, ROQUE_PRETO_REI, False)
 
         # hash roque
         self._aplicar_hash_roque(direitos_roque_antigos, self.direitos_roque)
@@ -712,6 +711,7 @@ class Estado:
         linha_destino, coluna_destino = movimento.destino
         peca_original = movimento.peca
 
+        # restaurar hash e metadados direto
         self.hash_atual = historico.hash_anterior
         self.direitos_roque = historico.direitos_roque
         self.coluna_en_passant = historico.coluna_en_passant
@@ -722,7 +722,7 @@ class Estado:
         if self.brancas_jogam:
             self.numero_jogada_completa -= 1
 
-        # desfazer roque (mover torre de volta com base na cor do rei)
+        # desfazer roque (mover torre de volta)
         if movimento.roque:
             if peca_original == REI_BRANCO:
                 linha_roque = 7
@@ -741,14 +741,14 @@ class Estado:
                     self.tabuleiro[linha_roque][7] = TORRE_PRETA
                     self.tabuleiro[linha_roque][5] = VAZIO
 
-        # desfazer en passant
+        # desfazer en passant ou movimento normal
         if movimento.en_passant:
             self.tabuleiro[linha_origem][coluna_origem] = peca_original
             self.tabuleiro[linha_destino][coluna_destino] = VAZIO
             if peca_original > 0:
-                self.tabuleiro[linha_destino+1][coluna_destino] = PEAO_PRETO
+                self.tabuleiro[linha_destino + 1][coluna_destino] = PEAO_PRETO
             else:
-                self.tabuleiro[linha_destino-1][coluna_destino] = PEAO_BRANCO
+                self.tabuleiro[linha_destino - 1][coluna_destino] = PEAO_BRANCO
         else:
             self.tabuleiro[linha_origem][coluna_origem] = peca_original
             self.tabuleiro[linha_destino][coluna_destino] = historico.capturada
@@ -768,12 +768,12 @@ class Avaliador:
                 if peca == VAZIO:
                     continue
                 pontuacao += VALOR_PECA[peca]
-                indice = linha*8 + coluna
+                indice = linha * 8 + coluna
                 tabela = TABELAS_POSICAO[peca]
                 if peca > 0:
                     pontuacao += tabela[indice]
                 else:
-                    pontuacao -= tabela[(7-linha)*8 + coluna]
+                    pontuacao -= tabela[(7 - linha) * 8 + coluna]
 
         # mobilidade (brancas - pretas)
         brancas_na_vez = estado.brancas_jogam
@@ -784,6 +784,7 @@ class Avaliador:
         estado.brancas_jogam = brancas_na_vez
         pontuacao += 10 * (movimentos_brancas - movimentos_pretas)
 
+        # bônus/penalidade simples por xeque
         if estado.em_xeque(True):
             pontuacao -= 50
         if estado.em_xeque(False):
@@ -806,7 +807,7 @@ class EntradaTT:
 # IA (busca)
 # ----------------------------
 class MotorIA:
-    def __init__(self, avaliador: Avaliador, tempo_por_lance: float = 2.0):
+    def __init__(self, avaliador: Avaliador, tempo_por_lance: float = 3.0):
         self.avaliador = avaliador
         self.tempo_limite = tempo_por_lance
         self.tabela_transposicao: Dict[int, EntradaTT] = {}
@@ -814,21 +815,37 @@ class MotorIA:
         self.nos_avaliados = 0
         self.melhor_movimento_global: Optional[Movimento] = None
 
+    def _ordenar_movimentos(self, movimentos: List[Movimento]) -> None:
+        # Heurística MVV-LVA + promoção
+        def score(m: Movimento) -> int:
+            s = 0
+            if m.capturada != VAZIO:
+                s += abs(VALOR_PECA[m.capturada]) - abs(VALOR_PECA[m.peca]) // 10
+            if m.promocao != VAZIO:
+                s += 800
+            if m.roque:
+                s += 200
+            return s
+        movimentos.sort(key=score, reverse=True)
+
     def escolher_movimento(self, estado: Estado) -> Optional[Movimento]:
         self.inicio_busca = time.time()
         self.nos_avaliados = 0
         self.melhor_movimento_global = None
 
         profundidade_maxima = 5
-        for profundidade in range(1, profundidade_maxima+1):
-            valor, movimento = self._alpha_beta_raiz(estado, profundidade)
+        alfa_global = -10**9
+        beta_global = 10**9
+
+        for profundidade in range(1, profundidade_maxima + 1):
+            valor, movimento = self._alpha_beta_raiz(estado, profundidade, alfa_global, beta_global)
             if movimento is not None:
                 self.melhor_movimento_global = movimento
             if time.time() - self.inicio_busca > self.tempo_limite:
                 break
         return self.melhor_movimento_global
 
-    def _alpha_beta_raiz(self, estado: Estado, profundidade: int) -> Tuple[int, Optional[Movimento]]:
+    def _alpha_beta_raiz(self, estado: Estado, profundidade: int, alfa: int, beta: int) -> Tuple[int, Optional[Movimento]]:
         movimentos = estado.gerar_movimentos_legais()
         if not movimentos:
             if estado.em_xeque(estado.brancas_jogam):
@@ -836,10 +853,8 @@ class MotorIA:
             else:
                 return 0, None
 
-        movimentos.sort(key=lambda m: 1 if m.capturada != VAZIO else 0, reverse=True)
+        self._ordenar_movimentos(movimentos)
 
-        alfa = -10**9
-        beta = 10**9
         melhor_valor = -10**9 if estado.brancas_jogam else 10**9
         melhor_movimento = None
 
@@ -847,7 +862,7 @@ class MotorIA:
             if time.time() - self.inicio_busca > self.tempo_limite:
                 break
             estado.fazer_movimento(movimento)
-            valor = self._alpha_beta(estado, profundidade-1, alfa, beta)
+            valor = self._alpha_beta(estado, profundidade - 1, alfa, beta)
             estado.desfazer_movimento()
             if estado.brancas_jogam:
                 if valor > melhor_valor:
@@ -886,14 +901,14 @@ class MotorIA:
                 return -999999 if estado.brancas_jogam else 999999
             return 0
 
-        movimentos.sort(key=lambda m: 1 if m.capturada != VAZIO else 0, reverse=True)
+        self._ordenar_movimentos(movimentos)
 
         melhor_valor = -10**9 if estado.brancas_jogam else 10**9
         flag = 2 if estado.brancas_jogam else 1
 
         for movimento in movimentos:
             estado.fazer_movimento(movimento)
-            valor = self._alpha_beta(estado, profundidade-1, alfa, beta)
+            valor = self._alpha_beta(estado, profundidade - 1, alfa, beta)
             estado.desfazer_movimento()
             if estado.brancas_jogam:
                 if valor > melhor_valor:
@@ -913,7 +928,11 @@ class MotorIA:
                     break
 
         self.tabela_transposicao[estado.hash_atual] = EntradaTT(
-            estado.hash_atual, profundidade, melhor_valor, flag, None
+            hash_chave=estado.hash_atual,
+            profundidade=profundidade,
+            valor=melhor_valor,
+            flag=flag,
+            melhor_movimento=None
         )
         return melhor_valor
 
@@ -932,6 +951,8 @@ class MotorIA:
 
         movimentos = estado.gerar_movimentos_legais()
         movimentos_captura = [m for m in movimentos if m.capturada != VAZIO]
+
+        self._ordenar_movimentos(movimentos_captura)
 
         for movimento in movimentos_captura:
             estado.fazer_movimento(movimento)
@@ -967,7 +988,7 @@ class JogoXadrez:
         self.avaliador = Avaliador()
         self.motor_ia = MotorIA(self.avaliador, tempo_por_lance=2.5)
 
-        self.casa_selecionada: Optional[Tuple[int,int]] = None
+        self.casa_selecionada: Optional[Tuple[int, int]] = None
         self.movimentos_legais_cache: List[Movimento] = []
         self.ultimo_movimento: Optional[Movimento] = None
         self.rodando = True
@@ -978,30 +999,33 @@ class JogoXadrez:
     def desenhar_tabuleiro(self):
         for linha in range(8):
             for coluna in range(8):
-                cor_casa = COR_TAB_CLARO if (linha+coluna) % 2 == 0 else COR_TAB_ESCURO
+                cor_casa = COR_TAB_CLARO if (linha + coluna) % 2 == 0 else COR_TAB_ESCURO
                 pygame.draw.rect(
                     self.tela,
                     cor_casa,
-                    (coluna*LADO_CASA, linha*LADO_CASA, LADO_CASA, LADO_CASA)
+                    (coluna * LADO_CASA, linha * LADO_CASA, LADO_CASA, LADO_CASA)
                 )
 
+        # último movimento
         if self.ultimo_movimento:
             l1, c1 = self.ultimo_movimento.origem
             l2, c2 = self.ultimo_movimento.destino
             superficie = pygame.Surface((LADO_CASA, LADO_CASA), pygame.SRCALPHA)
             superficie.fill((252, 211, 77, 120))
-            self.tela.blit(superficie, (c1*LADO_CASA, l1*LADO_CASA))
-            self.tela.blit(superficie, (c2*LADO_CASA, l2*LADO_CASA))
+            self.tela.blit(superficie, (c1 * LADO_CASA, l1 * LADO_CASA))
+            self.tela.blit(superficie, (c2 * LADO_CASA, l2 * LADO_CASA))
 
+        # seleção
         if self.casa_selecionada:
             linha, coluna = self.casa_selecionada
             pygame.draw.rect(
                 self.tela,
                 COR_SELECIONADO,
-                (coluna*LADO_CASA, linha*LADO_CASA, LADO_CASA, LADO_CASA),
+                (coluna * LADO_CASA, linha * LADO_CASA, LADO_CASA, LADO_CASA),
                 4
             )
 
+        # destinos possíveis
         if self.casa_selecionada:
             for movimento in self.movimentos_legais_cache:
                 if movimento.origem == self.casa_selecionada:
@@ -1009,7 +1033,7 @@ class JogoXadrez:
                     pygame.draw.circle(
                         self.tela,
                         (30, 64, 175),
-                        (cr*LADO_CASA + LADO_CASA//2, lr*LADO_CASA + LADO_CASA//2),
+                        (cr * LADO_CASA + LADO_CASA // 2, lr * LADO_CASA + LADO_CASA // 2),
                         10
                     )
 
@@ -1025,7 +1049,7 @@ class JogoXadrez:
                 cor_peca = (15, 23, 42)
                 superficie = self.fonte_pecas.render(texto, True, cor_peca)
                 ret = superficie.get_rect(
-                    center=(coluna*LADO_CASA + LADO_CASA//2, linha*LADO_CASA + LADO_CASA//2)
+                    center=(coluna * LADO_CASA + LADO_CASA // 2, linha * LADO_CASA + LADO_CASA // 2)
                 )
                 self.tela.blit(superficie, ret)
 
@@ -1035,7 +1059,7 @@ class JogoXadrez:
 
         titulo = "Xadrez IA Avançada"
         superficie_titulo = self.fonte_titulo.render(titulo, True, COR_TEXTO)
-        self.tela.blit(superficie_titulo, (x0+20, 20))
+        self.tela.blit(superficie_titulo, (x0 + 20, 20))
 
         turno = "Brancas" if self.estado.brancas_jogam else "Pretas"
         texto_turno = self.fonte_info.render(
@@ -1043,19 +1067,19 @@ class JogoXadrez:
             True,
             COR_IA if self.estado.brancas_jogam == self.humano_brancas else COR_TEXTO
         )
-        self.tela.blit(texto_turno, (x0+20, 60))
+        self.tela.blit(texto_turno, (x0 + 20, 60))
 
         pontuacao = self.avaliador.avaliar(self.estado)
         avaliacao = pontuacao / 100.0
         texto_score = self.fonte_info.render(f"Avaliação IA: {avaliacao:+.2f}", True, COR_TEXTO)
-        self.tela.blit(texto_score, (x0+20, 90))
+        self.tela.blit(texto_score, (x0 + 20, 90))
 
         texto_nos = self.fonte_info.render(
             f"Nós avaliados: {self.motor_ia.nos_avaliados}",
             True,
             COR_TEXTO
         )
-        self.tela.blit(texto_nos, (x0+20, 120))
+        self.tela.blit(texto_nos, (x0 + 20, 120))
 
         linhas = [
             "Controles:",
@@ -1063,16 +1087,16 @@ class JogoXadrez:
             "  e depois no destino",
             "- ESC: sair",
             "",
-            "IA: Minimax, Alpha-Beta,",
+            "IA: Minimax + Alpha-Beta",
             "TT + Quiescence",
         ]
         y = 160
         for linha_texto in linhas:
             superficie = self.fonte_info.render(linha_texto, True, COR_TEXTO)
-            self.tela.blit(superficie, (x0+20, y))
+            self.tela.blit(superficie, (x0 + 20, y))
             y += 22
 
-    def posicao_mouse_para_casa(self, posicao: Tuple[int,int]) -> Optional[Tuple[int,int]]:
+    def posicao_mouse_para_casa(self, posicao: Tuple[int, int]) -> Optional[Tuple[int, int]]:
         x, y = posicao
         if x >= TAMANHO_TABULEIRO:
             return None
