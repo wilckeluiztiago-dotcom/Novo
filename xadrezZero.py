@@ -10,18 +10,6 @@ from typing import List, Optional, Tuple, Dict
 # XADREZ AVANÇADO — IA com Minimax + Poda Alpha-Beta + TT
 # Autor: Luiz Tiago Wilcke (LT)
 # ============================================================
-# - Tabuleiro 8x8 em pygame (peças unicode)
-# - Geração de movimentos completa: roque, promoção, en passant
-# - IA:
-#     * Minimax com poda alpha-beta
-#     * Busca com profundidade iterativa (iterative deepening)
-#     * Quiescence search (busca de quietude)
-#     * Tabela de transposição com hashing Zobrist
-#     * Ordenação de movimentos (capturas primeiro, heurística simples)
-# - Avaliação:
-#     * Material + tabelas de posição (piece-square tables)
-#     * Mobilidade e segurança do rei (termos simples)
-# ============================================================
 
 # ----------------------------
 # Configurações de Pygame
@@ -542,8 +530,8 @@ class Estado:
                         Movimento((linha, coluna), (lr, cr), peca, alvo)
                     )
 
-        # roques
-        if self.brancas_jogam and peca == REI_BRANCO and linha == 7 and coluna == 4:
+        # roques (baseado na cor do rei)
+        if peca == REI_BRANCO and linha == 7 and coluna == 4:
             # roque pequeno branco
             if (self.direitos_roque & 0b0001) and \
                self.tabuleiro[7][5] == VAZIO and self.tabuleiro[7][6] == VAZIO:
@@ -565,7 +553,7 @@ class Estado:
                         Movimento((7,4),(7,2),peca,VAZIO,roque=True,roque_longo=True)
                     )
 
-        if (not self.brancas_jogam) and peca == REI_PRETO and linha == 0 and coluna == 4:
+        if peca == REI_PRETO and linha == 0 and coluna == 4:
             # roque pequeno preto
             if (self.direitos_roque & 0b0100) and \
                self.tabuleiro[0][5] == VAZIO and self.tabuleiro[0][6] == VAZIO:
@@ -593,28 +581,29 @@ class Estado:
     def fazer_movimento(self, movimento: Movimento):
         linha_origem, coluna_origem = movimento.origem
         linha_destino, coluna_destino = movimento.destino
-        peca = movimento.peca
-        capturada = self.tabuleiro[linha_destino][coluna_destino]
+        peca_original = movimento.peca  # peça que saiu da origem
+        peca_destino_original = self.tabuleiro[linha_destino][coluna_destino]
+        capturada = peca_destino_original
 
         direitos_roque_antigos = self.direitos_roque
         coluna_ep_antiga = self.coluna_en_passant
         relogio_meia_jogada_antigo = self.relogio_meia_jogada
         hash_antigo = self.hash_atual
 
-        # hash: remover peças
-        self._aplicar_hash_peca(linha_origem, coluna_origem, peca)
+        # hash: remover peças da origem e peça capturada
+        self._aplicar_hash_peca(linha_origem, coluna_origem, peca_original)
         if capturada != VAZIO:
             self._aplicar_hash_peca(linha_destino, coluna_destino, capturada)
 
-        # meia jogada
-        if abs(peca) == 1 or capturada != VAZIO:
+        # meia jogada (regra dos 50 lances)
+        if abs(peca_original) == 1 or capturada != VAZIO:
             self.relogio_meia_jogada = 0
         else:
             self.relogio_meia_jogada += 1
 
         # captura en passant
         if movimento.en_passant:
-            if peca > 0:
+            if peca_original > 0:
                 linha_peao_capturado = linha_destino + 1
             else:
                 linha_peao_capturado = linha_destino - 1
@@ -625,34 +614,27 @@ class Estado:
 
         # mover peça
         self.tabuleiro[linha_origem][coluna_origem] = VAZIO
-        self.tabuleiro[linha_destino][coluna_destino] = peca
+        peca_final = movimento.promocao if movimento.promocao != VAZIO else peca_original
+        self.tabuleiro[linha_destino][coluna_destino] = peca_final
 
-        # promoção
-        if movimento.promocao != VAZIO:
-            self._aplicar_hash_peca(linha_destino, coluna_destino, peca)
-            peca = movimento.promocao
-            self.tabuleiro[linha_destino][coluna_destino] = peca
-            self._aplicar_hash_peca(linha_destino, coluna_destino, peca)
-        else:
-            self._aplicar_hash_peca(linha_destino, coluna_destino, peca)
+        # hash da peça movida/promoção
+        self._aplicar_hash_peca(linha_destino, coluna_destino, peca_final)
 
-        # roques
+        # roques (mover a torre correta com base na cor do rei)
         if movimento.roque:
-            if self.brancas_jogam:
+            if peca_original == REI_BRANCO:
                 linha_roque = 7
                 if movimento.roque_longo:
-                    # torre de a1 para d1
                     self._aplicar_hash_peca(linha_roque, 0, TORRE_BRANCA)
                     self.tabuleiro[linha_roque][0] = VAZIO
                     self.tabuleiro[linha_roque][3] = TORRE_BRANCA
                     self._aplicar_hash_peca(linha_roque, 3, TORRE_BRANCA)
                 else:
-                    # torre de h1 para f1
                     self._aplicar_hash_peca(linha_roque, 7, TORRE_BRANCA)
                     self.tabuleiro[linha_roque][7] = VAZIO
                     self.tabuleiro[linha_roque][5] = TORRE_BRANCA
                     self._aplicar_hash_peca(linha_roque, 5, TORRE_BRANCA)
-            else:
+            elif peca_original == REI_PRETO:
                 linha_roque = 0
                 if movimento.roque_longo:
                     self._aplicar_hash_peca(linha_roque, 0, TORRE_PRETA)
@@ -665,25 +647,25 @@ class Estado:
                     self.tabuleiro[linha_roque][5] = TORRE_PRETA
                     self._aplicar_hash_peca(linha_roque, 5, TORRE_PRETA)
 
-        # perda de direitos de roque ao mover peças
-        if peca == REI_BRANCO:
+        # perda de direitos de roque ao mover REI/TORRE (usar peça original)
+        if peca_original == REI_BRANCO:
             self.direitos_roque = definir_bit(self.direitos_roque, 0, False)
             self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
-        elif peca == REI_PRETO:
+        elif peca_original == REI_PRETO:
             self.direitos_roque = definir_bit(self.direitos_roque, 2, False)
             self.direitos_roque = definir_bit(self.direitos_roque, 3, False)
-        elif peca == TORRE_BRANCA:
+        elif peca_original == TORRE_BRANCA:
             if linha_origem == 7 and coluna_origem == 0:
                 self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
             elif linha_origem == 7 and coluna_origem == 7:
                 self.direitos_roque = definir_bit(self.direitos_roque, 0, False)
-        elif peca == TORRE_PRETA:
+        elif peca_original == TORRE_PRETA:
             if linha_origem == 0 and coluna_origem == 0:
                 self.direitos_roque = definir_bit(self.direitos_roque, 3, False)
             elif linha_origem == 0 and coluna_origem == 7:
                 self.direitos_roque = definir_bit(self.direitos_roque, 2, False)
 
-        # se capturamos torre adversária
+        # se capturamos torre adversária, atualizar direitos de roque
         if capturada == TORRE_BRANCA:
             if linha_destino == 7 and coluna_destino == 0:
                 self.direitos_roque = definir_bit(self.direitos_roque, 1, False)
@@ -698,10 +680,10 @@ class Estado:
         # hash roque
         self._aplicar_hash_roque(direitos_roque_antigos, self.direitos_roque)
 
-        # en passant
+        # en passant (nova coluna)
         self._aplicar_hash_en_passant(coluna_ep_antiga, -1)
         self.coluna_en_passant = -1
-        if abs(movimento.peca) == 1 and abs(linha_destino - linha_origem) == 2:
+        if abs(peca_original) == 1 and abs(linha_destino - linha_origem) == 2:
             self.coluna_en_passant = coluna_origem
             self._aplicar_hash_en_passant(-1, self.coluna_en_passant)
 
@@ -728,20 +710,21 @@ class Estado:
         movimento = historico.movimento
         linha_origem, coluna_origem = movimento.origem
         linha_destino, coluna_destino = movimento.destino
-        peca = movimento.peca
+        peca_original = movimento.peca
 
         self.hash_atual = historico.hash_anterior
         self.direitos_roque = historico.direitos_roque
         self.coluna_en_passant = historico.coluna_en_passant
         self.relogio_meia_jogada = historico.relogio_meia_jogada
 
+        # restaurar lado a jogar e número da jogada
         self.brancas_jogam = not self.brancas_jogam
         if self.brancas_jogam:
             self.numero_jogada_completa -= 1
 
-        # desfazer roque
+        # desfazer roque (mover torre de volta com base na cor do rei)
         if movimento.roque:
-            if not self.brancas_jogam:
+            if peca_original == REI_BRANCO:
                 linha_roque = 7
                 if movimento.roque_longo:
                     self.tabuleiro[linha_roque][0] = TORRE_BRANCA
@@ -749,7 +732,7 @@ class Estado:
                 else:
                     self.tabuleiro[linha_roque][7] = TORRE_BRANCA
                     self.tabuleiro[linha_roque][5] = VAZIO
-            else:
+            elif peca_original == REI_PRETO:
                 linha_roque = 0
                 if movimento.roque_longo:
                     self.tabuleiro[linha_roque][0] = TORRE_PRETA
@@ -760,14 +743,14 @@ class Estado:
 
         # desfazer en passant
         if movimento.en_passant:
-            self.tabuleiro[linha_origem][coluna_origem] = peca
+            self.tabuleiro[linha_origem][coluna_origem] = peca_original
             self.tabuleiro[linha_destino][coluna_destino] = VAZIO
-            if peca > 0:
+            if peca_original > 0:
                 self.tabuleiro[linha_destino+1][coluna_destino] = PEAO_PRETO
             else:
                 self.tabuleiro[linha_destino-1][coluna_destino] = PEAO_BRANCO
         else:
-            self.tabuleiro[linha_origem][coluna_origem] = peca
+            self.tabuleiro[linha_origem][coluna_origem] = peca_original
             self.tabuleiro[linha_destino][coluna_destino] = historico.capturada
 
 # ----------------------------
