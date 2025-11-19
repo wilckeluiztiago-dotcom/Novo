@@ -1,463 +1,408 @@
 # ============================================================
-# Dinâmica de Poço de Petróleo — EDOs + Rede Neural + Pygame
-# Autor: Luiz Tiago Wilcke (LT)
-# ============================================================
-# Ideia:
-#   - Modelo físico simplificado em EDOs:
-#       x = (pressao_reservatorio, pressao_cabeca, fracao_agua, vazao_oleo)
-#
-#     dP_r/dt = -a1 * vazao_oleo + a2*(P_ext - P_r)
-#     dP_wh/dt = b1*(vazao_oleo - vazao_alvo) - b2*(P_wh - P_sep)
-#     dW/dt    = c1*(W_eq(P_r) - W)
-#     dQ/dt    = d1*(Q_teorico(P_r, P_wh, u) - Q)
-#
-#   - Controle: abertura_valvula u ∈ [0,1]
-#   - Rede neural aprende uma "política" u(x) aproximando uma regra heurística.
-#
-#   - Pygame: simulação em tempo "quase real" com barras e indicadores.
+# MODELO GEOFÍSICO 1D DO POÇO DE PETRÓLEO + VISUALIZAÇÃO PYGAME
+# Autor: Luiz Tiago Wilcke 
 # ============================================================
 
 import math
-import random
+import sys
 from dataclasses import dataclass
-from typing import Tuple
 
 import numpy as np
-from scipy.integrate import solve_ivp
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
 import pygame
 
 
 # ------------------------------------------------------------
-# 1) Parâmetros físicos e de simulação
+# 1. Parâmetros físicos e numéricos do poço
 # ------------------------------------------------------------
+
 @dataclass
 class ParametrosPoco:
-    # Pressões (unidades arbitrárias, ex.: bar)
-    pressao_reservatorio_inicial: float = 280.0
-    pressao_cabeca_inicial: float = 80.0
-    pressao_externa_aquifero: float = 300.0
-    pressao_separador: float = 60.0
-
-    # Estados adicionais
-    fracao_agua_inicial: float = 0.1
-    vazao_oleo_inicial: float = 500.0  # m3/dia (escala genérica)
-
-    # Parâmetros das EDOs
-    a1_deplecao: float = 1.0e-3
-    a2_recarga: float = 5.0e-4
-    b1_acoplamento_vazao_pressao: float = 1.0e-3
-    b2_relaxamento_cabeca: float = 5.0e-3
-    c1_dinamica_agua: float = 1.0e-3
-    d1_relaxamento_vazao: float = 1.0e-2
-
-    # Parâmetros de vazão teórica
-    ganho_produtividade: float = 3.0  # Q_teorico ≈ k * (P_r - P_wh) * u
-
-    # Alvos operacionais
-    vazao_alvo: float = 600.0
-    pressao_cabeca_max: float = 120.0
-    fracao_agua_max: float = 0.6
-
-    # Tempo de simulação para gerar dados (dias)
-    tempo_total_dados: float = 500.0
-    dt_dados: float = 0.5
-
-    # Tempo de passo da simulação Pygame (em "dias simulados" por frame)
-    dt_simulacao: float = 0.25
+    profundidade_total: float = 3000.0       # m
+    numero_nos: int = 80                     # discretização vertical
+    pressao_reservatorio: float = 320e5      # Pa (fundo do poço)
+    pressao_boca_base: float = 80e5          # Pa (superfície, sem produção)
+    temperatura_superficie: float = 300.0    # K
+    temperatura_reservatorio: float = 380.0  # K
+    difusividade_pressao: float = 0.015      # m^2/s (difusão de pressão)
+    difusividade_temperatura: float = 0.008  # m^2/s (condução térmica)
+    velocidade_media_subida: float = 0.15    # m/s (escoamento médio do fluido)
+    ganho_vazao_pressao: float = 2.0e6       # Pa por unidade de vazão (estrangulador)
+    capacidade_termica_rocha: float = 2.0e6  # J/(m^3 K) — rocha + fluido
+    fonte_calor_atrito: float = 2.0e3        # W/m^3 (atrito do escoamento)
+    passo_tempo_base: float = 1.0            # s (será corrigido por estabilidade)
 
 
 # ------------------------------------------------------------
-# 2) Dinâmica do poço (EDOs)
+# 2. Núcleo numérico: EDPs 1D para pressão e temperatura
+#    ∂p/∂t = Dp ∂²p/∂z² − v ∂p/∂z + q_p(z,t)
+#    ∂T/∂t = Dt ∂²T/∂z² − v ∂T/∂z + q_T(z,t)/(ρ c)
 # ------------------------------------------------------------
-def fracao_agua_equilibrio(pressao_reservatorio: float) -> float:
-    """
-    Fração de água de equilíbrio W_eq(P_r): aumenta quando a pressão cai
-    (entrada de água do aquífero / conificação).
-    """
-    # Função logística simples entre 0.05 e 0.8, com ponto de transição em 200 bar
-    W_min, W_max = 0.05, 0.8
-    p0 = 200.0
-    k = 0.03
-    return W_min + (W_max - W_min) / (1.0 + math.exp(-k * (p0 - pressao_reservatorio)))
 
+class ModeloGeofisicoPoco:
+    def __init__(self, parametros: ParametrosPoco):
+        self.parametros = parametros
+        self.profundidade_total = parametros.profundidade_total
+        self.numero_nos = parametros.numero_nos
+        self.delta_z = self.profundidade_total / (self.numero_nos - 1)
 
-def vazao_teorica(pressao_reservatorio: float,
-                  pressao_cabeca: float,
-                  abertura_valvula: float,
-                  params: ParametrosPoco) -> float:
-    """
-    Vazão teórica de óleo (sem água) em função da drawdown (P_r - P_wh) e abertura da válvula.
-    """
-    delta_p = max(pressao_reservatorio - pressao_cabeca, 0.0)
-    return params.ganho_produtividade * delta_p * max(min(abertura_valvula, 1.0), 0.0)
+        # Malha 1D: z = 0 (superfície) até z = profundidade_total (fundo)
+        self.profundidades = np.linspace(0.0, self.profundidade_total, self.numero_nos)
 
+        # Campos dinâmicos
+        self.pressao = np.zeros(self.numero_nos, dtype=float)
+        self.temperatura = np.zeros(self.numero_nos, dtype=float)
 
-def dinamica_poco(
-    t: float,
-    estado: np.ndarray,
-    abertura_valvula: float,
-    params: ParametrosPoco
-) -> np.ndarray:
-    """
-    Sistema de EDOs d/dt [P_r, P_wh, W, Q].
-    """
-    pressao_reservatorio = estado[0]
-    pressao_cabeca = estado[1]
-    fracao_agua = estado[2]
-    vazao_oleo = estado[3]
+        # Parâmetros de controle operacional
+        self.vazao_superficie = 0.5   # 0 (fechado) a 1 (máxima produção)
+        self.tempo_simulacao = 0.0
 
-    # 1) Dinâmica da pressão do reservatório
-    dP_r_dt = (
-        -params.a1_deplecao * vazao_oleo
-        + params.a2_recarga * (params.pressao_externa_aquifero - pressao_reservatorio)
-    )
+        self._inicializar_campos()
+        self.delta_tempo_estavel = self._calcular_delta_tempo_estavel()
 
-    # 2) Dinâmica da pressão na cabeça do poço
-    dP_wh_dt = (
-        params.b1_acoplamento_vazao_pressao * (vazao_oleo - params.vazao_alvo)
-        - params.b2_relaxamento_cabeca * (pressao_cabeca - params.pressao_separador)
-    )
+    def _inicializar_campos(self):
+        """Perfil inicial: gradiente quase hidrostático + gradiente térmico."""
+        p_topo = self.parametros.pressao_boca_base
+        p_fundo = self.parametros.pressao_reservatorio
+        t_topo = self.parametros.temperatura_superficie
+        t_fundo = self.parametros.temperatura_reservatorio
 
-    # 3) Dinâmica da fração de água
-    W_eq = fracao_agua_equilibrio(pressao_reservatorio)
-    dW_dt = params.c1_dinamica_agua * (W_eq - fracao_agua)
+        # Interpolação linear inicial
+        self.pressao = np.linspace(p_topo, p_fundo, self.numero_nos)
+        self.temperatura = np.linspace(t_topo, t_fundo, self.numero_nos)
 
-    # 4) Dinâmica da vazão de óleo
-    Q_teo = vazao_teorica(pressao_reservatorio, pressao_cabeca, abertura_valvula, params)
-    dQ_dt = params.d1_relaxamento_vazao * (Q_teo * (1.0 - fracao_agua) - vazao_oleo)
+    def _calcular_delta_tempo_estavel(self) -> float:
+        """Critério de estabilidade simples (CFL) para difusão + advecção."""
+        dz = self.delta_z
+        D_max = max(self.parametros.difusividade_pressao,
+                    self.parametros.difusividade_temperatura)
+        v = abs(self.parametros.velocidade_media_subida)
 
-    return np.array([dP_r_dt, dP_wh_dt, dW_dt, dQ_dt], dtype=float)
+        # Difusão: dt <= 0.45 * dz^2 / D
+        termo_difusao = 0.45 * dz * dz / max(D_max, 1e-8)
 
+        # Advecção: dt <= 0.5 * dz / v
+        if v > 1e-8:
+            termo_adveccao = 0.5 * dz / v
+        else:
+            termo_adveccao = 1e9
 
-# ------------------------------------------------------------
-# 3) Política heurística (controle "ideal" para gerar dados)
-# ------------------------------------------------------------
-def politica_heuristica(
-    estado: np.ndarray,
-    params: ParametrosPoco
-) -> float:
-    """
-    Regra "ideal" (inventada) para abertura da válvula:
-      - Aumenta se vazão está abaixo do alvo e pressões seguras.
-      - Diminui se P_wh está alta ou fração de água está alta.
-    """
-    P_r, P_wh, W, Q = estado
+        dt_estavel = min(termo_difusao, termo_adveccao, self.parametros.passo_tempo_base)
+        return float(dt_estavel)
 
-    termo_vazao = 0.004 * (params.vazao_alvo - Q)           # quer puxar Q -> alvo
-    termo_pressao = -0.01 * max(P_wh - params.pressao_cabeca_max, 0.0)
-    termo_agua = -0.5 * max(W - params.fracao_agua_max, 0.0)
-
-    u_base = 0.5 + termo_vazao + termo_pressao + termo_agua
-
-    # Saturação em [0, 1]
-    u = max(0.0, min(1.0, u_base))
-    return u
-
-
-# ------------------------------------------------------------
-# 4) Geração de dados sintéticos (EDO + política heurística)
-# ------------------------------------------------------------
-def gerar_dados(params: ParametrosPoco) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Gera trajetória longa com solve_ivp e coleta pares (estado -> abertura_ideal).
-    """
-    t0 = 0.0
-    tf = params.tempo_total_dados
-    n_passos = int((tf - t0) / params.dt_dados) + 1
-    t_eval = np.linspace(t0, tf, n_passos)
-
-    estado0 = np.array([
-        params.pressao_reservatorio_inicial,
-        params.pressao_cabeca_inicial,
-        params.fracao_agua_inicial,
-        params.vazao_oleo_inicial
-    ], dtype=float)
-
-    estados = []
-    controles = []
-
-    estado_atual = estado0.copy()
-    tempo_atual = t0
-
-    for k in range(n_passos):
-        u = politica_heuristica(estado_atual, params)
-
-        # Integra um passo de dt_dados com solve_ivp usando u fixo
-        sol = solve_ivp(
-            fun=lambda t, y: dinamica_poco(t, y, u, params),
-            t_span=(tempo_atual, tempo_atual + params.dt_dados),
-            y0=estado_atual,
-            method="RK45",
-            t_eval=[tempo_atual + params.dt_dados]
+    def _aplicar_condicoes_contorno(self):
+        """Condiciona pressão e temperatura em topo e fundo do poço."""
+        # Topo: pressão depende da vazão (mais produção => menor pressão na boca)
+        pressao_boca = (
+            self.parametros.pressao_boca_base
+            - self.parametros.ganho_vazao_pressao * self.vazao_superficie
         )
-        estado_novo = sol.y[:, -1]
+        # Garante limite físico mínimo (tipo pressão próxima à atmosférica)
+        pressao_boca = max(2.0e5, pressao_boca)
 
-        estados.append(estado_atual.copy())
-        controles.append(u)
+        self.pressao[0] = pressao_boca
+        self.temperatura[0] = self.parametros.temperatura_superficie
 
-        estado_atual = estado_novo
-        tempo_atual += params.dt_dados
+        # Fundo: condições quase fixas (reservatório grande)
+        self.pressao[-1] = self.parametros.pressao_reservatorio
+        self.temperatura[-1] = self.parametros.temperatura_reservatorio
 
-    X = np.vstack(estados)      # [N, 4]
-    y = np.array(controles)     # [N]
+    def passo_tempo(self, fator_escala_tempo: float = 1.0):
+        """Avança solução em um passo de tempo, mantendo estabilidade."""
+        delta_tempo = self.delta_tempo_estavel * fator_escala_tempo
+        dz = self.delta_z
 
-    return X, y
+        # Copia para evitar interferência durante o cálculo
+        pressao_atual = self.pressao.copy()
+        temperatura_atual = self.temperatura.copy()
+
+        Dp = self.parametros.difusividade_pressao
+        Dt = self.parametros.difusividade_temperatura
+        v = self.parametros.velocidade_media_subida
+        fonte_calor = self.parametros.fonte_calor_atrito
+        capacidade_termica = self.parametros.capacidade_termica_rocha
+
+        # Derivadas espaciais interiores (esquema de diferenças finitas)
+        # Índices 1..N-2 (os extremos são dados por contorno)
+        for i in range(1, self.numero_nos - 1):
+            # Difusão (segunda derivada)
+            d2p_dz2 = (pressao_atual[i + 1] - 2.0 * pressao_atual[i] + pressao_atual[i - 1]) / (dz * dz)
+            d2T_dz2 = (temperatura_atual[i + 1] - 2.0 * temperatura_atual[i] + temperatura_atual[i - 1]) / (dz * dz)
+
+            # Advecção (primeira derivada, central)
+            dp_dz = (pressao_atual[i + 1] - pressao_atual[i - 1]) / (2.0 * dz)
+            dT_dz = (temperatura_atual[i + 1] - temperatura_atual[i - 1]) / (2.0 * dz)
+
+            # Termo-fonte simplificado para pressão: acoplamento fraco com gradiente térmico
+            # q_p ~ pequeno ganho quando fluido está mais quente (menor viscosidade)
+            termo_fonte_pressao = 0.02 * (temperatura_atual[i] - self.parametros.temperatura_superficie)
+
+            # Termo-fonte térmico: atrito do escoamento ao longo do poço
+            termo_fonte_temperatura = fonte_calor / capacidade_termica
+
+            dp_dt = Dp * d2p_dz2 - v * dp_dz + termo_fonte_pressao
+            dT_dt = Dt * d2T_dz2 - v * dT_dz + termo_fonte_temperatura
+
+            self.pressao[i] = pressao_atual[i] + delta_tempo * dp_dt
+            self.temperatura[i] = temperatura_atual[i] + delta_tempo * dT_dt
+
+        # Condições de contorno em topo e fundo
+        self._aplicar_condicoes_contorno()
+
+        # Avança o relógio interno
+        self.tempo_simulacao += delta_tempo
+
+    def obter_metricas(self):
+        """Alguns indicadores numéricos para análise rápida."""
+        pressao_topo = float(self.pressao[0])
+        pressao_fundo = float(self.pressao[-1])
+        gradiente_medio_pressao = (pressao_fundo - pressao_topo) / self.profundidade_total
+
+        temperatura_topo = float(self.temperatura[0])
+        temperatura_fundo = float(self.temperatura[-1])
+        gradiente_medio_temperatura = (temperatura_fundo - temperatura_topo) / self.profundidade_total
+
+        return {
+            "tempo_s": self.tempo_simulacao,
+            "pressao_topo_Pa": pressao_topo,
+            "pressao_fundo_Pa": pressao_fundo,
+            "gradiente_pressao_Pa_m": gradiente_medio_pressao,
+            "temperatura_topo_K": temperatura_topo,
+            "temperatura_fundo_K": temperatura_fundo,
+            "gradiente_temperatura_K_m": gradiente_medio_temperatura,
+            "vazao_superficie": self.vazao_superficie,
+        }
 
 
 # ------------------------------------------------------------
-# 5) Rede Neural: política u(x) ≈ u_heurística(x)
+# 3. Visualização interativa com Pygame
 # ------------------------------------------------------------
-class PoliticaNN(nn.Module):
-    def __init__(self, dim_entrada: int = 4, dim_oculto: int = 64):
-        super().__init__()
-        self.rede = nn.Sequential(
-            nn.Linear(dim_entrada, dim_oculto),
-            nn.Tanh(),
-            nn.Linear(dim_oculto, dim_oculto),
-            nn.Tanh(),
-            nn.Linear(dim_oculto, 1),
-            nn.Sigmoid()  # garante saída em [0, 1]
-        )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.rede(x)
-
-
-def treinar_rede(
-    X: np.ndarray,
-    y: np.ndarray,
-    epocas: int = 300,
-    taxa_aprendizado: float = 1e-3,
-    batch_size: int = 256
-) -> PoliticaNN:
-    """
-    Treina uma pequena rede neural para aproximar u_ideal(x).
-    """
-    dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    modelo = PoliticaNN(dim_entrada=X.shape[1], dim_oculto=64).to(dispositivo)
-    otimizador = optim.Adam(modelo.parameters(), lr=taxa_aprendizado)
-    criterio = nn.MSELoss()
-
-    dataset = torch.utils.data.TensorDataset(
-        torch.tensor(X, dtype=torch.float32),
-        torch.tensor(y.reshape(-1, 1), dtype=torch.float32)
-    )
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    for epoca in range(epocas):
-        modelo.train()
-        perda_total = 0.0
-        for batch_X, batch_y in loader:
-            batch_X = batch_X.to(dispositivo)
-            batch_y = batch_y.to(dispositivo)
-
-            otimizador.zero_grad()
-            saida = modelo(batch_X)
-            perda = criterio(saida, batch_y)
-            perda.backward()
-            otimizador.step()
-
-            perda_total += perda.item() * batch_X.size(0)
-
-        if (epoca + 1) % 50 == 0:
-            print(f"[Treino] Época {epoca+1}/{epocas} | Loss média: {perda_total / len(dataset):.6f}")
-
-    return modelo
-
-
-# ------------------------------------------------------------
-# 6) Simulação em Pygame
-# ------------------------------------------------------------
-class SimulacaoPygame:
-    def __init__(self, params: ParametrosPoco, modelo_nn: PoliticaNN):
-        self.params = params
-        self.modelo_nn = modelo_nn.eval()
-        self.dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.modelo_nn.to(self.dispositivo)
-
-        # Estado
-        self.estado = np.array([
-            params.pressao_reservatorio_inicial,
-            params.pressao_cabeca_inicial,
-            params.fracao_agua_inicial,
-            params.vazao_oleo_inicial
-        ], dtype=float)
-        self.tempo = 0.0
-        self.abertura_valvula = 0.5
-        self.controle_manual = False
-
-        # Pygame
+class SimuladorPygamePoco:
+    def __init__(self, modelo: ModeloGeofisicoPoco):
         pygame.init()
-        self.largura = 900
-        self.altura = 600
-        self.tela = pygame.display.set_mode((self.largura, self.altura))
-        pygame.display.set_caption("Dinâmica de Poço de Petróleo — EDO + Rede Neural")
-        self.clock = pygame.time.Clock()
-        self.fonte = pygame.font.SysFont("consolas", 18)
+        self.modelo = modelo
 
-    def _calcular_abertura(self) -> float:
-        if self.controle_manual:
-            # Em modo manual, self.abertura_valvula é alterada pelas teclas
-            return self.abertura_valvula
+        self.largura_janela = 1000
+        self.altura_janela = 700
+        self.janela = pygame.display.set_mode((self.largura_janela, self.altura_janela))
+        pygame.display.setcaption = pygame.display.set_caption(
+            "Simulação Geofísica do Poço de Petróleo — LT"
+        )
 
-        # Usa a rede neural
-        x = torch.tensor(self.estado, dtype=torch.float32).unsqueeze(0).to(self.dispositivo)
-        with torch.no_grad():
-            u = self.modelo_nn(x).cpu().numpy()[0, 0]
-        self.abertura_valvula = float(u)
-        return self.abertura_valvula
+        self.relogio = pygame.time.Clock()
+        self.fonte_pequena = pygame.font.SysFont("consolas", 16)
+        self.fonte_media = pygame.font.SysFont("consolas", 22, bold=True)
 
-    def _passo_dinamico(self):
-        dt = self.params.dt_simulacao
-        u = self._calcular_abertura()
-        derivadas = dinamica_poco(self.tempo, self.estado, u, self.params)
-        # Integrador simples de Euler explícito
-        self.estado = self.estado + dt * derivadas
-        # Pequenas proteções
-        self.estado[2] = max(0.0, min(1.0, self.estado[2]))  # fração de água ∈ [0, 1]
-        self.estado[3] = max(0.0, self.estado[3])            # vazão não negativa
-        self.tempo += dt
+        # Escalas de visualização
+        self.margem_superior = 50
+        self.margem_inferior = 60
+        self.coluna_altura = self.altura_janela - self.margem_superior - self.margem_inferior
+        self.coluna_largura = 60
 
-    def _desenhar_barras(self):
-        # Desenha barras para P_r, P_wh, W, Q, u
-        self.tela.fill((240, 245, 255))
+        # Fator de aceleração do tempo (simulação numérica)
+        self.fator_escala_tempo = 5.0
 
-        P_r, P_wh, W, Q = self.estado
-        u = self.abertura_valvula
+    def _cor_por_valor(self, valor, minimo, maximo):
+        """Mapa de cores simples: azul (baixo) -> verde -> vermelho (alto)."""
+        if maximo <= minimo:
+            return (255, 255, 255)
+        x = (valor - minimo) / (maximo - minimo)
+        x = max(0.0, min(1.0, x))
+        # Interpolação manual: azul -> verde -> vermelho
+        if x < 0.5:
+            # Azul (0,0,255) para Verde (0,255,0)
+            t = x / 0.5
+            r = 0
+            g = int(255 * t)
+            b = int(255 * (1 - t))
+        else:
+            # Verde (0,255,0) para Vermelho (255,0,0)
+            t = (x - 0.5) / 0.5
+            r = int(255 * t)
+            g = int(255 * (1 - t))
+            b = 0
+        return (r, g, b)
 
-        # Escalas aproximadas
-        max_P_r = 350.0
-        max_P_wh = 200.0
-        max_Q = 1000.0
+    def _desenhar_coluna(self, valores, xmin, xmax, x_centro):
+        """Desenha uma coluna vertical discretizada ao longo da profundidade."""
+        numero_nos = len(valores)
+        altura_celula = self.coluna_altura / numero_nos
 
-        def barra(x, y, largura, altura, valor_norm, cor):
-            valor_norm = max(0.0, min(1.0, valor_norm))
-            h = int(altura * valor_norm)
-            pygame.draw.rect(self.tela, (220, 220, 220), (x, y, largura, altura), border_radius=6)
-            pygame.draw.rect(self.tela, cor,
-                             (x, y + (altura - h), largura, h),
-                             border_radius=6)
+        valor_min = float(np.min(valores))
+        valor_max = float(np.max(valores))
 
-        base_y = 120
-        altura_barra = 350
-        largura_barra = 60
-        espacamento = 80
-        x0 = 80
+        for i, valor in enumerate(valores):
+            y_topo = self.margem_superior + i * altura_celula
+            retangulo = pygame.Rect(
+                x_centro - self.coluna_largura // 2,
+                int(y_topo),
+                self.coluna_largura,
+                int(altura_celula) + 1,
+            )
+            cor = self._cor_por_valor(
+                valor,
+                xmin if xmin is not None else valor_min,
+                xmax if xmax is not None else valor_max,
+            )
+            pygame.draw.rect(self.janela, cor, retangulo)
 
-        # P_r
-        barra(x0, base_y, largura_barra, altura_barra, P_r / max_P_r, (40, 90, 180))
-        # P_wh
-        barra(x0 + espacamento, base_y, largura_barra, altura_barra, P_wh / max_P_wh, (200, 80, 80))
-        # W
-        barra(x0 + 2 * espacamento, base_y, largura_barra, altura_barra, W, (80, 160, 80))
-        # Q
-        barra(x0 + 3 * espacamento, base_y, largura_barra, altura_barra, Q / max_Q, (200, 160, 60))
-        # u
-        barra(x0 + 4 * espacamento, base_y, largura_barra, altura_barra, u, (120, 60, 200))
+        # Moldura
+        cor_borda = (220, 220, 220)
+        moldura = pygame.Rect(
+            x_centro - self.coluna_largura // 2,
+            self.margem_superior,
+            self.coluna_largura,
+            self.coluna_altura,
+        )
+        pygame.draw.rect(self.janela, cor_borda, moldura, 1)
 
-        # Textos
-        textos = [
-            ("P_res (bar)", x0),
-            ("P_cab (bar)", x0 + espacamento),
-            ("Frac_agua", x0 + 2 * espacamento),
-            ("Q_oleo", x0 + 3 * espacamento),
-            ("Abertura", x0 + 4 * espacamento),
-        ]
-        for txt, x in textos:
-            s = self.fonte.render(txt, True, (20, 20, 40))
-            self.tela.blit(s, (x - 10, base_y + altura_barra + 10))
+    def _desenhar_interface(self):
+        self.janela.fill((7, 10, 25))
 
-        # Infos numéricas
-        info_linhas = [
-            f"Tempo simulado: {self.tempo:7.1f} dias",
-            f"Pressao reservatorio: {P_r:7.1f} bar",
-            f"Pressao cabeca:      {P_wh:7.1f} bar (max alvo {self.params.pressao_cabeca_max:.1f})",
-            f"Fracao de agua:      {W:7.3f}",
-            f"Vazao oleo:          {Q:7.1f} m3/d (alvo {self.params.vazao_alvo:.1f})",
-            f"Abertura valvula u:  {u:7.3f}",
-            f"Modo controle:       {'MANUAL (setas ↑/↓)' if self.controle_manual else 'REDE NEURAL'}"
-        ]
-        ytxt = 20
-        for linha in info_linhas:
-            s = self.fonte.render(linha, True, (10, 10, 30))
-            self.tela.blit(s, (420, ytxt))
-            ytxt += 24
+        # Atualiza o modelo algumas vezes por quadro para acelerar a dinâmica
+        self.modelo.passo_tempo(self.fator_escala_tempo)
+
+        # Coluna de pressão (esquerda)
+        x_pressao = self.largura_janela // 3
+        self._desenhar_coluna(
+            self.modelo.pressao,
+            xmin=40e5,
+            xmax=340e5,
+            x_centro=x_pressao,
+        )
+
+        # Coluna de temperatura (direita)
+        x_temperatura = 2 * self.largura_janela // 3
+        self._desenhar_coluna(
+            self.modelo.temperatura,
+            xmin=290.0,
+            xmax=390.0,
+            x_centro=x_temperatura,
+        )
+
+        # Títulos
+        texto_pressao = self.fonte_media.render(
+            "Pressão ao longo do poço (Pa)", True, (240, 240, 240)
+        )
+        texto_temperatura = self.fonte_media.render(
+            "Temperatura ao longo do poço (K)", True, (240, 240, 240)
+        )
+        self.janela.blit(
+            texto_pressao,
+            (x_pressao - texto_pressao.get_width() // 2, 10),
+        )
+        self.janela.blit(
+            texto_temperatura,
+            (x_temperatura - texto_temperatura.get_width() // 2, 10),
+        )
+
+        # Escala de profundidade
+        cor_texto = (200, 200, 200)
+        profundidade_total = self.modelo.profundidade_total
+        for frac in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            y = self.margem_superior + frac * self.coluna_altura
+            profundidade = int(frac * profundidade_total)
+            pygame.draw.line(
+                self.janela,
+                (80, 80, 80),
+                (x_pressao - 80, int(y)),
+                (x_temperatura + 80, int(y)),
+                1,
+            )
+            texto = self.fonte_pequena.render(f"{profundidade:4d} m", True, cor_texto)
+            self.janela.blit(texto, (20, int(y) - 8))
+
+        # Métricas numéricas
+        metricas = self.modelo.obter_metricas()
+        linha = 0
+        deslocamento_x = 40
+        deslocamento_y = self.altura_janela - self.margem_inferior + 5
+
+        def escrever(linha_texto: str):
+            nonlocal linha
+            texto = self.fonte_pequena.render(linha_texto, True, cor_texto)
+            self.janela.blit(texto, (deslocamento_x, deslocamento_y + 18 * linha))
+            linha += 1
+
+        escrever(f"Tempo simulado: {metricas['tempo_s']/3600.0:6.2f} h")
+        escrever(f"Pressão topo:   {metricas['pressao_topo_Pa']/1e5:6.2f} bar")
+        escrever(f"Pressão fundo:  {metricas['pressao_fundo_Pa']/1e5:6.2f} bar")
+        escrever(
+            f"Gradiente P:    {metricas['gradiente_pressao_Pa_m']/1e4:6.2f} x10^4 Pa/m"
+        )
+        escrever(f"Temp. topo:     {metricas['temperatura_topo_K']:6.1f} K")
+        escrever(f"Temp. fundo:    {metricas['temperatura_fundo_K']:6.1f} K")
+        escrever(
+            f"Gradiente T:    {metricas['gradiente_temperatura_K_m']*1000:6.3f} K/km"
+        )
+        escrever(
+            f"Vazão (controle): {metricas['vazao_superficie']:.2f} "
+            "(0 = fechado, 1 = máximo)"
+        )
 
         # Instruções
-        instr = [
-            "Teclas:",
-            "[N] - alternar NN / manual",
-            "[↑] / [↓] - ajuste da abertura em modo manual",
-            "[R] - resetar estado do poço",
-            "[ESC] - sair"
+        instrucoes = [
+            "Controles: ↑ aumenta produção (menor pressão na boca do poço)",
+            "           ↓ reduz produção",
+            "           → acelera simulação   ← desacelera simulação",
+            "           ESC ou Q para sair",
         ]
-        ytxt = 20
-        for linha in instr:
-            s = self.fonte.render(linha, True, (30, 30, 60))
-            self.tela.blit(s, (40, ytxt))
-            ytxt += 24
+        for idx, txt in enumerate(instrucoes):
+            texto = self.fonte_pequena.render(txt, True, (180, 180, 220))
+            self.janela.blit(
+                texto,
+                (
+                    self.largura_janela - texto.get_width() - 30,
+                    self.altura_janela - self.margem_inferior + 5 + 18 * idx,
+                ),
+            )
 
-    def _processar_eventos(self) -> bool:
-        """
-        Processa eventos. Retorna False se for para encerrar.
-        """
+    def _processar_eventos(self):
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return False
             if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_ESCAPE:
+                if evento.key in (pygame.K_ESCAPE, pygame.K_q):
                     return False
-                if evento.key == pygame.K_n:
-                    self.controle_manual = not self.controle_manual
-                if evento.key == pygame.K_r:
-                    # Reseta o poço
-                    self.estado = np.array([
-                        self.params.pressao_reservatorio_inicial,
-                        self.params.pressao_cabeca_inicial,
-                        self.params.fracao_agua_inicial,
-                        self.params.vazao_oleo_inicial
-                    ], dtype=float)
-                    self.tempo = 0.0
-                if self.controle_manual:
-                    if evento.key == pygame.K_UP:
-                        self.abertura_valvula = min(1.0, self.abertura_valvula + 0.05)
-                    if evento.key == pygame.K_DOWN:
-                        self.abertura_valvula = max(0.0, self.abertura_valvula - 0.05)
+                if evento.key == pygame.K_UP:
+                    self.modelo.vazao_superficie = min(
+                        1.0, self.modelo.vazao_superficie + 0.05
+                    )
+                if evento.key == pygame.K_DOWN:
+                    self.modelo.vazao_superficie = max(
+                        0.0, self.modelo.vazao_superficie - 0.05
+                    )
+                if evento.key == pygame.K_RIGHT:
+                    self.fator_escala_tempo = min(
+                        20.0, self.fator_escala_tempo * 1.2
+                    )
+                if evento.key == pygame.K_LEFT:
+                    self.fator_escala_tempo = max(
+                        0.25, self.fator_escala_tempo / 1.2
+                    )
         return True
 
     def rodar(self):
-        rodando = True
-        while rodando:
-            rodando = self._processar_eventos()
-            self._passo_dinamico()
-            self._desenhar_barras()
+        """Loop principal da simulação gráfica."""
+        while True:
+            if not self._processar_eventos():
+                break
+            self._desenhar_interface()
             pygame.display.flip()
-            self.clock.tick(30)  # ~30 FPS
+            self.relogio.tick(30)  # FPS alvo
 
 
 # ------------------------------------------------------------
-# 7) Main
+# 4. Execução direta
 # ------------------------------------------------------------
+
 def main():
-    params = ParametrosPoco()
-
-    print("=== Gerando dados sintéticos via EDO + política heurística ===")
-    X, y = gerar_dados(params)
-    print(f"Dados gerados: {X.shape[0]} amostras.")
-
-    print("=== Treinando rede neural de política u(x) ===")
-    modelo_nn = treinar_rede(X, y, epocas=300, taxa_aprendizado=1e-3, batch_size=256)
-
-    print("=== Iniciando simulação interativa em Pygame ===")
-    simulacao = SimulacaoPygame(params, modelo_nn)
-    simulacao.rodar()
+    parametros = ParametrosPoco()
+    modelo = ModeloGeofisicoPoco(parametros)
+    simulador = SimuladorPygamePoco(modelo)
+    simulador.rodar()
     pygame.quit()
+    sys.exit(0)
 
 
 if __name__ == "__main__":
