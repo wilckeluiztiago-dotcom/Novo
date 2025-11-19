@@ -4,7 +4,6 @@
 #
 # - Resolve a EDP de Black–Scholes usando rede neural
 # - Modelo híbrido: EDP + Rede Neural (Physics-Informed NN)
-# - Pode ser base para opções, swaps, futuros, seguros, etc.
 # ============================================================
 
 import torch
