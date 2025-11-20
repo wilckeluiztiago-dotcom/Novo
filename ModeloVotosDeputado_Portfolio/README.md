@@ -45,7 +45,7 @@ e votos absolutos:
 V_{i,t} = p_{i,t}\, V_{\text{total}}
 \]
 
-Esse tipo de difusão em simplex é coerente com a literatura de **Wright‑Fisher / logistic‑normal** para múltiplas categorias (voto multipartidário). citeturn0academia20turn0search5
+Esse tipo de difusão em simplex é coerente com a literatura de **Wright‑Fisher / logistic‑normal** para múltiplas categorias (voto multipartidário).citeturn0academia20turn0search5
 
 ### 3) Probabilidades finais
 
