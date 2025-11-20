@@ -5,8 +5,6 @@
 #
 # Ponte = tabuleiro como viga simplesmente apoiada
 # ρA w_tt + c w_t + EI w_xxxx = q(x,t)
-#
-# Resultados: SOMENTE numéricos impressos
 # ============================================================
 
 import numpy as np
