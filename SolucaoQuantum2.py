@@ -1,6 +1,6 @@
 # ============================================================
 # QUANTUM MACHINE LEARNING (VQLS) PARA EDO/PDE
-# Exemplo: Poisson 1D com contorno (u'' = -pi^2 sin(pi x))
+# Poisson 1D com contorno (u'' = -pi^2 sin(pi x))
 # Autor: Luiz Tiago Wilcke (LT)
 # ============================================================
 
