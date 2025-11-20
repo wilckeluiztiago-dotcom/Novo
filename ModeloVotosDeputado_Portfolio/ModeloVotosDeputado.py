@@ -4,7 +4,7 @@
 ===========================================================
 MODELO PROBABILÍSTICO-NEURAL PARA PREVER VOTOS
 Deputado Estadual (multi-candidato) — Brasil
-Autor: Luiz Tiago Wilcke (LT) + ChatGPT
+Autor: Luiz Tiago Wilcke (LT) 
 ===========================================================
 
 Objetivo
