@@ -444,7 +444,7 @@ class AnalisadorDemografia:
         return metricas
 
 # =============================================================================
-# 4. EXECUÇÃO PRINCIPAL (CORRIGIDA)
+# 4. EXECUÇÃO PRINCIPAL 
 # =============================================================================
 
 def main():
