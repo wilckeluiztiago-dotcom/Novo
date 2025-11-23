@@ -391,5 +391,5 @@ if __name__ == "__main__":
         print(f"\n❌ ERRO DURANTE A EXECUÇÃO: {e}")
         import traceback
         traceback.print_exc()
-        print("\n💡 Dica: Verifique se todas as bibliotecas estão instaladas:")
+
    
