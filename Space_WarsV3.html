@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Wars Avançado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #0a0a2a, #1a1a4a, #0a0a2a);
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+
+        #tela-inicio {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 200, 255, 0.5);
+        }
+
+        #tela-inicio h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ccff, 0 0 20px #00ccff;
+            color: #fff;
+            letter-spacing: 3px;
+        }
+
+        #tela-inicio p {
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+
+        #btn-iniciar {
+            background: linear-gradient(to bottom, #00ccff, #0088cc);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            color: white;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(0, 200, 255, 0.7);
+        }
+
+        #btn-iniciar:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(0, 200, 255, 1);
+        }
+
+        #jogo {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 200, 255, 0.5);
+        }
+
+        .estrela {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+        }
+
+        #nave-jogador {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 80px;
+            z-index: 5;
+            transition: transform 0.1s;
+        }
+
+        /* Nave do jogador - CSS avançado */
+        .corpo-nave {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            border-radius: 5px 5px 20px 20px;
+        }
+
+        .cabine-nave {
+            position: absolute;
+            width: 30px;
+            height: 20px;
+            background: rgba(52, 152, 219, 0.7);
+            top: 10px;
+            left: 15px;
+            border-radius: 50% 50% 0 0;
+        }
+
+        .asa-esquerda {
+            position: absolute;
+            width: 20px;
+            height: 40px;
+            background: #2980b9;
+            top: 30px;
+            left: -15px;
+            clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
+            border-radius: 5px;
+        }
+
+        .asa-direita {
+            position: absolute;
+            width: 20px;
+            height: 40px;
+            background: #2980b9;
+            top: 30px;
+            right: -15px;
+            clip-path: polygon(100% 0%, 0% 50%, 100% 100%);
+            border-radius: 5px;
+        }
+
+        .motor-nave {
+            position: absolute;
+            width: 40px;
+            height: 20px;
+            background: #ff9900;
+            bottom: -15px;
+            left: 10px;
+            border-radius: 0 0 10px 10px;
+            animation: pulsar-motor 0.2s infinite alternate;
+        }
+
+        @keyframes pulsar-motor {
+            0% { background: #ff9900; height: 20px; }
+            100% { background: #ff5500; height: 25px; }
+        }
+
+        .alienigena {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            z-index: 4;
+        }
+
+        /* Alienígena tipo 1 */
+        .corpo-alien-1 {
+            position: absolute;
+            width: 50px;
+            height: 40px;
+            background: linear-gradient(45deg, #8e44ad, #9b59b6);
+            border-radius: 50% 50% 20% 20%;
+        }
+
+        .olho-alien-1 {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #00ff00;
+            border-radius: 50%;
+            top: 15px;
+            animation: piscar-olhos 2s infinite;
+        }
+
+        .olho-esquerdo {
+            left: 10px;
+        }
+
+        .olho-direito {
+            right: 10px;
+        }
+
+        .boca-alien-1 {
+            position: absolute;
+            width: 20px;
+            height: 5px;
+            background: #ff0000;
+            bottom: 10px;
+            left: 15px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        /* Alienígena tipo 2 */
+        .corpo-alien-2 {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            border-radius: 50%;
+        }
+
+        .chifre-alien-2 {
+            position: absolute;
+            width: 8px;
+            height: 15px;
+            background: #c0392b;
+            top: -10px;
+            border-radius: 50% 50% 0 0;
+        }
+
+        .chifre-esquerdo {
+            left: 15px;
+            transform: rotate(-15deg);
+        }
+
+        .chifre-direito {
+            right: 15px;
+            transform: rotate(15deg);
+        }
+
+        .olho-alien-2 {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #ffff00;
+            border-radius: 50%;
+            top: 15px;
+            animation: piscar-olhos 1.5s infinite;
+        }
+
+        @keyframes piscar-olhos {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .tiro {
+            position: absolute;
+            width: 4px;
+            height: 15px;
+            background: #00ff00;
+            border-radius: 2px;
+            z-index: 3;
+            box-shadow: 0 0 5px #00ff00;
+        }
+
+        .tiro-inimigo {
+            background: #ff0000;
+            box-shadow: 0 0 5px #ff0000;
+        }
+
+        .explosao {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ff9900, #ff5500, transparent);
+            opacity: 0;
+            z-index: 6;
+            animation: explodir 0.5s forwards;
+        }
+
+        @keyframes explodir {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 7;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+
+        #barra-vida {
+            width: 200px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        #vida-atual {
+            height: 100%;
+            background: linear-gradient(to right, #ff0000, #ff9900, #00ff00);
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        #tela-game-over {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 10px;
+        }
+
+        #tela-game-over h2 {
+            font-size: 48px;
+            color: #ff0000;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #ff0000;
+        }
+
+        #tela-game-over p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        #btn-reiniciar {
+            background: linear-gradient(to bottom, #ff5500, #cc0000);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            color: white;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.7);
+        }
+
+        #btn-reiniciar:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 1);
+        }
+
+        .power-up {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            z-index: 4;
+            animation: flutuar 2s infinite alternate;
+        }
+
+        .power-up-vida {
+            background: radial-gradient(circle, #ff0000, #990000);
+            box-shadow: 0 0 10px #ff0000;
+        }
+
+        .power-up-escudo {
+            background: radial-gradient(circle, #00ccff, #0066cc);
+            box-shadow: 0 0 10px #00ccff;
+        }
+
+        @keyframes flutuar {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-10px); }
+        }
+
+        .escudo {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid #00ccff;
+            box-shadow: 0 0 15px #00ccff;
+            z-index: 2;
+            opacity: 0.7;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="tela-inicio">
+            <h1>SPACE WARS</h1>
+            <p>Defenda a galáxia contra a invasão alienígena! Use as setas para mover e a barra de espaço para atirar.</p>
+            <p>Colete power-ups para recuperar vida e ganhar escudos temporários.</p>
+            <button id="btn-iniciar">INICIAR MISSÃO</button>
+        </div>
+
+        <div id="jogo">
+            <div id="nave-jogador">
+                <div class="corpo-nave"></div>
+                <div class="cabine-nave"></div>
+                <div class="asa-esquerda"></div>
+                <div class="asa-direita"></div>
+                <div class="motor-nave"></div>
+                <div class="escudo" id="escudo-jogador"></div>
+            </div>
+
+            <div id="hud">
+                <div>Pontuação: <span id="pontuacao">0</span></div>
+                <div>Vida: <span id="texto-vida">100</span>%</div>
+                <div id="barra-vida">
+                    <div id="vida-atual"></div>
+                </div>
+                <div>Nível: <span id="nivel">1</span></div>
+                <div>Escudo: <span id="tempo-escudo">0</span>s</div>
+            </div>
+
+            <div id="tela-game-over">
+                <h2>MISSÃO FALHADA</h2>
+                <p>Sua pontuação: <span id="pontuacao-final">0</span></p>
+                <p>Nível alcançado: <span id="nivel-final">1</span></p>
+                <button id="btn-reiniciar">TENTAR NOVAMENTE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis do jogo
+        const jogo = document.getElementById('jogo');
+        const naveJogador = document.getElementById('nave-jogador');
+        const pontuacaoElemento = document.getElementById('pontuacao');
+        const textoVida = document.getElementById('texto-vida');
+        const barraVida = document.getElementById('vida-atual');
+        const nivelElemento = document.getElementById('nivel');
+        const tempoEscudoElemento = document.getElementById('tempo-escudo');
+        const telaInicio = document.getElementById('tela-inicio');
+        const telaGameOver = document.getElementById('tela-game-over');
+        const pontuacaoFinal = document.getElementById('pontuacao-final');
+        const nivelFinal = document.getElementById('nivel-final');
+        const btnIniciar = document.getElementById('btn-iniciar');
+        const btnReiniciar = document.getElementById('btn-reiniciar');
+        const escudoJogador = document.getElementById('escudo-jogador');
+
+        // Estado do jogo
+        let jogoAtivo = false;
+        let pontuacao = 0;
+        let vida = 100;
+        let nivel = 1;
+        let tempoEscudo = 0;
+        let escudoAtivo = false;
+        let posicaoNave = 400;
+        let teclas = {};
+        let tiros = [];
+        let alienigenas = [];
+        let powerUps = [];
+        let estrelas = [];
+        let idAnimacao;
+
+        // Sons do jogo (usando base64 para simular sons)
+        const somTiro = new Audio();
+        const somExplosao = new Audio();
+        const somPowerUp = new Audio();
+        const somDano = new Audio();
+
+        // Inicialização do jogo
+        function inicializarJogo() {
+            // Criar estrelas de fundo
+            criarEstrelas();
+            
+            // Configurar eventos
+            document.addEventListener('keydown', function(evento) {
+                teclas[evento.key] = true;
+                
+                if (evento.key === ' ' && jogoAtivo) {
+                    atirar();
+                    evento.preventDefault();
+                }
+            });
+            
+            document.addEventListener('keyup', function(evento) {
+                teclas[evento.key] = false;
+            });
+            
+            btnIniciar.addEventListener('click', iniciarJogo);
+            btnReiniciar.addEventListener('click', reiniciarJogo);
+        }
+
+        function criarEstrelas() {
+            for (let i = 0; i < 100; i++) {
+                const estrela = document.createElement('div');
+                estrela.className = 'estrela';
+                
+                const tamanho = Math.random() * 3;
+                estrela.style.width = `${tamanho}px`;
+                estrela.style.height = `${tamanho}px`;
+                
+                estrela.style.left = `${Math.random() * 100}%`;
+                estrela.style.top = `${Math.random() * 100}%`;
+                
+                estrela.style.opacity = Math.random();
+                
+                jogo.appendChild(estrela);
+                estrelas.push(estrela);
+            }
+        }
+
+        function iniciarJogo() {
+            telaInicio.style.display = 'none';
+            jogoAtivo = true;
+            pontuacao = 0;
+            vida = 100;
+            nivel = 1;
+            tempoEscudo = 0;
+            escudoAtivo = false;
+            posicaoNave = 400;
+            
+            atualizarHUD();
+            escudoJogador.style.display = 'none';
+            
+            // Limpar elementos do jogo anterior
+            tiros.forEach(tiro => {
+                if (tiro.parentNode) tiro.remove();
+            });
+            alienigenas.forEach(alien => {
+                if (alien.elemento.parentNode) alien.elemento.remove();
+            });
+            powerUps.forEach(powerUp => {
+                if (powerUp.elemento.parentNode) powerUp.elemento.remove();
+            });
+            
+            tiros = [];
+            alienigenas = [];
+            powerUps = [];
+            
+            // Iniciar loop do jogo
+            cancelAnimationFrame(idAnimacao);
+            loopJogo();
+        }
+
+        function reiniciarJogo() {
+            telaGameOver.style.display = 'none';
+            iniciarJogo();
+        }
+
+        function gameOver() {
+            jogoAtivo = false;
+            pontuacaoFinal.textContent = pontuacao;
+            nivelFinal.textContent = nivel;
+            telaGameOver.style.display = 'flex';
+            cancelAnimationFrame(idAnimacao);
+        }
+
+        function loopJogo() {
+            if (!jogoAtivo) return;
+            
+            moverNave();
+            moverTiros();
+            moverAlienigenas();
+            moverPowerUps();
+            verificarColisoes();
+            gerarAlienigenas();
+            gerarPowerUps();
+            atualizarEscudo();
+            atualizarHUD();
+            
+            idAnimacao = requestAnimationFrame(loopJogo);
+        }
+
+        function moverNave() {
+            if (teclas['ArrowLeft'] && posicaoNave > 30) {
+                posicaoNave -= 7;
+            }
+            if (teclas['ArrowRight'] && posicaoNave < 770) {
+                posicaoNave += 7;
+            }
+            
+            naveJogador.style.left = `${posicaoNave}px`;
+        }
+
+        function atirar() {
+            const tiro = document.createElement('div');
+            tiro.className = 'tiro';
+            tiro.style.left = `${posicaoNave + 28}px`;
+            tiro.style.bottom = '130px';
+            
+            jogo.appendChild(tiro);
+            tiros.push(tiro);
+            
+            // Tocar som de tiro
+            somTiro.currentTime = 0;
+            somTiro.play().catch(e => console.log("Som de tiro não pode ser reproduzido: ", e));
+        }
+
+        function moverTiros() {
+            for (let i = tiros.length - 1; i >= 0; i--) {
+                const tiro = tiros[i];
+                const posicaoAtual = parseInt(tiro.style.bottom) || 0;
+                
+                if (posicaoAtual > 600) {
+                    if (tiro.parentNode) tiro.remove();
+                    tiros.splice(i, 1);
+                } else {
+                    tiro.style.bottom = `${posicaoAtual + 10}px`;
+                }
+            }
+        }
+
+        function gerarAlienigenas() {
+            if (Math.random() < 0.02 * nivel) {
+                const tipoAlien = Math.random() < 0.7 ? 1 : 2;
+                criarAlienigena(tipoAlien);
+            }
+        }
+
+        function criarAlienigena(tipo) {
+            const alien = document.createElement('div');
+            alien.className = 'alienigena';
+            
+            const posicaoX = Math.random() * 750;
+            alien.style.left = `${posicaoX}px`;
+            alien.style.top = '-60px';
+            
+            if (tipo === 1) {
+                // Alienígena tipo 1
+                const corpo = document.createElement('div');
+                corpo.className = 'corpo-alien-1';
+                
+                const olhoEsquerdo = document.createElement('div');
+                olhoEsquerdo.className = 'olho-alien-1 olho-esquerdo';
+                
+                const olhoDireito = document.createElement('div');
+                olhoDireito.className = 'olho-alien-1 olho-direito';
+                
+                const boca = document.createElement('div');
+                boca.className = 'boca-alien-1';
+                
+                alien.appendChild(corpo);
+                alien.appendChild(olhoEsquerdo);
+                alien.appendChild(olhoDireito);
+                alien.appendChild(boca);
+            } else {
+                // Alienígena tipo 2
+                const corpo = document.createElement('div');
+                corpo.className = 'corpo-alien-2';
+                
+                const chifreEsquerdo = document.createElement('div');
+                chifreEsquerdo.className = 'chifre-alien-2 chifre-esquerdo';
+                
+                const chifreDireito = document.createElement('div');
+                chifreDireito.className = 'chifre-alien-2 chifre-direito';
+                
+                const olhoEsquerdo = document.createElement('div');
+                olhoEsquerdo.className = 'olho-alien-2 olho-esquerdo';
+                
+                const olhoDireito = document.createElement('div');
+                olhoDireito.className = 'olho-alien-2 olho-direito';
+                
+                alien.appendChild(corpo);
+                alien.appendChild(chifreEsquerdo);
+                alien.appendChild(chifreDireito);
+                alien.appendChild(olhoEsquerdo);
+                alien.appendChild(olhoDireito);
+            }
+            
+            jogo.appendChild(alien);
+            alienigenas.push({
+                elemento: alien,
+                tipo: tipo,
+                vida: tipo,
+                velocidade: 1 + Math.random() * nivel / 2,
+                posicaoX: posicaoX,
+                posicaoY: -60,
+                ultimoTiro: Date.now()
+            });
+        }
+
+        function moverAlienigenas() {
+            for (let i = alienigenas.length - 1; i >= 0; i--) {
+                const alien = alienigenas[i];
+                alien.posicaoY += alien.velocidade;
+                alien.elemento.style.top = `${alien.posicaoY}px`;
+                
+                // Atirar ocasionalmente
+                if (Date.now() - alien.ultimoTiro > 2000 / nivel && Math.random() < 0.01) {
+                    atirarAlienigena(alien);
+                    alien.ultimoTiro = Date.now();
+                }
+                
+                // Remover alienígenas que saíram da tela
+                if (alien.posicaoY > 650) {
+                    if (alien.elemento.parentNode) alien.elemento.remove();
+                    alienigenas.splice(i, 1);
+                }
+            }
+        }
+
+        function atirarAlienigena(alien) {
+            const tiro = document.createElement('div');
+            tiro.className = 'tiro tiro-inimigo';
+            tiro.style.left = `${alien.posicaoX + 25}px`;
+            tiro.style.top = `${alien.posicaoY + 50}px`;
+            
+            jogo.appendChild(tiro);
+            tiros.push(tiro);
+        }
+
+        function gerarPowerUps() {
+            if (Math.random() < 0.005) {
+                criarPowerUp();
+            }
+        }
+
+        function criarPowerUp() {
+            const tipo = Math.random() < 0.5 ? 'vida' : 'escudo';
+            const powerUp = document.createElement('div');
+            powerUp.className = `power-up power-up-${tipo}`;
+            
+            const posicaoX = Math.random() * 770;
+            powerUp.style.left = `${posicaoX}px`;
+            powerUp.style.top = '-30px';
+            
+            jogo.appendChild(powerUp);
+            powerUps.push({
+                elemento: powerUp,
+                tipo: tipo,
+                posicaoX: posicaoX,
+                posicaoY: -30
+            });
+        }
+
+        function moverPowerUps() {
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                const powerUp = powerUps[i];
+                powerUp.posicaoY += 2;
+                powerUp.elemento.style.top = `${powerUp.posicaoY}px`;
+                
+                // Remover power-ups que saíram da tela
+                if (powerUp.posicaoY > 650) {
+                    if (powerUp.elemento.parentNode) powerUp.elemento.remove();
+                    powerUps.splice(i, 1);
+                }
+            }
+        }
+
+        function verificarColisoes() {
+            // Verificar colisões entre tiros do jogador e alienígenas
+            for (let i = tiros.length - 1; i >= 0; i--) {
+                const tiro = tiros[i];
+                
+                if (!tiro.classList.contains('tiro-inimigo')) {
+                    for (let j = alienigenas.length - 1; j >= 0; j--) {
+                        const alien = alienigenas[j];
+                        
+                        if (colidindo(tiro, alien.elemento)) {
+                            // Remover tiro
+                            if (tiro.parentNode) tiro.remove();
+                            tiros.splice(i, 1);
+                            
+                            // Reduzir vida do alienígena
+                            alien.vida--;
+                            
+                            if (alien.vida <= 0) {
+                                // Destruir alienígena
+                                criarExplosao(alien.posicaoX, alien.posicaoY);
+                                if (alien.elemento.parentNode) alien.elemento.remove();
+                                alienigenas.splice(j, 1);
+                                
+                                // Aumentar pontuação
+                                pontuacao += alien.tipo * 10;
+                                somExplosao.currentTime = 0;
+                                somExplosao.play().catch(e => console.log("Som de explosão não pode ser reproduzido: ", e));
+                                
+                                // Verificar se deve aumentar o nível
+                                if (pontuacao >= nivel * 100) {
+                                    nivel++;
+                                }
+                            }
+                            
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Verificar colisões entre tiros inimigos e a nave do jogador
+            for (let i = tiros.length - 1; i >= 0; i--) {
+                const tiro = tiros[i];
+                
+                if (tiro.classList.contains('tiro-inimigo') && colidindo(tiro, naveJogador)) {
+                    // Remover tiro
+                    if (tiro.parentNode) tiro.remove();
+                    tiros.splice(i, 1);
+                    
+                    // Aplicar dano ao jogador
+                    if (!escudoAtivo) {
+                        vida -= 10;
+                        somDano.currentTime = 0;
+                        somDano.play().catch(e => console.log("Som de dano não pode ser reproduzido: ", e));
+                        
+                        if (vida <= 0) {
+                            vida = 0;
+                            gameOver();
+                        }
+                    }
+                }
+            }
+            
+            // Verificar colisões entre alienígenas e a nave do jogador
+            for (let i = alienigenas.length - 1; i >= 0; i--) {
+                const alien = alienigenas[i];
+                
+                if (colidindo(alien.elemento, naveJogador)) {
+                    // Destruir alienígena
+                    criarExplosao(alien.posicaoX, alien.posicaoY);
+                    if (alien.elemento.parentNode) alien.elemento.remove();
+                    alienigenas.splice(i, 1);
+                    
+                    // Aplicar dano ao jogador
+                    if (!escudoAtivo) {
+                        vida -= 20;
+                        somDano.currentTime = 0;
+                        somDano.play().catch(e => console.log("Som de dano não pode ser reproduzido: ", e));
+                        
+                        if (vida <= 0) {
+                            vida = 0;
+                            gameOver();
+                        }
+                    }
+                }
+            }
+            
+            // Verificar colisões entre power-ups e a nave do jogador
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                const powerUp = powerUps[i];
+                
+                if (colidindo(powerUp.elemento, naveJogador)) {
+                    // Aplicar efeito do power-up
+                    if (powerUp.tipo === 'vida') {
+                        vida = Math.min(100, vida + 30);
+                    } else if (powerUp.tipo === 'escudo') {
+                        tempoEscudo = 10;
+                        escudoAtivo = true;
+                        escudoJogador.style.display = 'block';
+                    }
+                    
+                    // Remover power-up
+                    if (powerUp.elemento.parentNode) powerUp.elemento.remove();
+                    powerUps.splice(i, 1);
+                    
+                    somPowerUp.currentTime = 0;
+                    somPowerUp.play().catch(e => console.log("Som de power-up não pode ser reproduzido: ", e));
+                }
+            }
+        }
+
+        function colidindo(elemento1, elemento2) {
+            const rect1 = elemento1.getBoundingClientRect();
+            const rect2 = elemento2.getBoundingClientRect();
+            
+            return !(
+                rect1.right < rect2.left ||
+                rect1.left > rect2.right ||
+                rect1.bottom < rect2.top ||
+                rect1.top > rect2.bottom
+            );
+        }
+
+        function criarExplosao(x, y) {
+            const explosao = document.createElement('div');
+            explosao.className = 'explosao';
+            explosao.style.left = `${x}px`;
+            explosao.style.top = `${y}px`;
+            
+            jogo.appendChild(explosao);
+            
+            setTimeout(() => {
+                if (explosao.parentNode) explosao.remove();
+            }, 500);
+        }
+
+        function atualizarEscudo() {
+            if (escudoAtivo) {
+                tempoEscudo -= 0.016; // Aproximadamente 1/60 segundos
+                
+                if (tempoEscudo <= 0) {
+                    tempoEscudo = 0;
+                    escudoAtivo = false;
+                    escudoJogador.style.display = 'none';
+                }
+            }
+        }
+
+        function atualizarHUD() {
+            pontuacaoElemento.textContent = pontuacao;
+            textoVida.textContent = vida;
+            barraVida.style.width = `${vida}%`;
+            nivelElemento.textContent = nivel;
+            tempoEscudoElemento.textContent = Math.ceil(tempoEscudo);
+        }
+
+        // Inicializar o jogo quando a página carregar
+        window.addEventListener('load', inicializarJogo);
+    </script>
+</body>
+</html>
