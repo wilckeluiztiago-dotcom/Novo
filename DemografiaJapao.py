@@ -92,7 +92,7 @@ class DadosDemografiaJapao:
         return base / 100
 
 # =============================================================================
-# 2. MODELO DE DINÂMICA POPULACIONAL AVANÇADO (CORRIGIDO)
+# 2. MODELO DE DINÂMICA POPULACIONAL AVANÇADO 
 # =============================================================================
 
 class ModeloDemografiaJaponesa:
