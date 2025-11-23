@@ -12,7 +12,7 @@ plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 
 # =============================================================================
-# 1. CARREGAMENTO E PREPARAÇÃO DOS DADOS HISTÓRICOS DO JAPÃO (CORRIGIDOS)
+# 1. CARREGAMENTO E PREPARAÇÃO DOS DADOS HISTÓRICOS DO JAPÃO 
 # =============================================================================
 
 class DadosDemografiaJapao:
