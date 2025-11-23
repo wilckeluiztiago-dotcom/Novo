@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Calculadora Científica</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #1a252f;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a3a, #2c3e50);
+            color: var(--light-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, var(--secondary-color), var(--accent-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .author {
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .calculator-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .calculator {
+            flex: 1;
+            min-width: 300px;
+            background-color: var(--dark-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .display {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: right;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .expression {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            word-break: break-all;
+            min-height: 30px;
+        }
+        
+        .result {
+            font-size: 2rem;
+            font-weight: bold;
+            word-break: break-all;
+        }
+        
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        
+        button {
+            padding: 15px 10px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--primary-color);
+            color: var(--light-color);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        button:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .operator {
+            background-color: var(--secondary-color);
+        }
+        
+        .function {
+            background-color: var(--warning-color);
+        }
+        
+        .equals {
+            background-color: var(--success-color);
+            grid-column: span 2;
+        }
+        
+        .clear {
+            background-color: var(--accent-color);
+        }
+        
+        .integral-section {
+            flex: 1;
+            min-width: 300px;
+            background-color: var(--dark-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--secondary-color);
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background-color: rgba(0, 0, 0, 0.3);
+            color: var(--light-color);
+            font-size: 1rem;
+        }
+        
+        .integral-result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            min-height: 60px;
+            font-size: 1.2rem;
+        }
+        
+        .history {
+            width: 100%;
+            background-color: var(--dark-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-top: 20px;
+        }
+        
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .history-expression {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .history-result {
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .calculator-container {
+                flex-direction: column;
+            }
+            
+            .keypad {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Super Calculadora Científica</h1>
+            <p class="author">Desenvolvida por: Luiz Tiago Wilcke</p>
+        </header>
+        
+        <div class="calculator-container">
+            <div class="calculator">
+                <div class="display">
+                    <div class="expression" id="expression"></div>
+                    <div class="result" id="result">0</div>
+                </div>
+                
+                <div class="keypad">
+                    <button class="clear" onclick="clearAll()">C</button>
+                    <button class="clear" onclick="clearEntry()">CE</button>
+                    <button class="function" onclick="addToExpression('(')">(</button>
+                    <button class="function" onclick="addToExpression(')')">)</button>
+                    <button class="function" onclick="addToExpression('π')">π</button>
+                    
+                    <button class="function" onclick="addToExpression('sin(')">sin</button>
+                    <button class="function" onclick="addToExpression('cos(')">cos</button>
+                    <button class="function" onclick="addToExpression('tan(')">tan</button>
+                    <button class="function" onclick="addToExpression('log(')">log</button>
+                    <button class="function" onclick="addToExpression('ln(')">ln</button>
+                    
+                    <button class="function" onclick="addToExpression('√(')">√</button>
+                    <button class="function" onclick="addToExpression('^')">^</button>
+                    <button class="function" onclick="addToExpression('!')">!</button>
+                    <button class="function" onclick="addToExpression('e')">e</button>
+                    <button class="operator" onclick="addToExpression('/')">/</button>
+                    
+                    <button onclick="addToExpression('7')">7</button>
+                    <button onclick="addToExpression('8')">8</button>
+                    <button onclick="addToExpression('9')">9</button>
+                    <button class="operator" onclick="addToExpression('*')">×</button>
+                    <button class="function" onclick="addToExpression('abs(')">|x|</button>
+                    
+                    <button onclick="addToExpression('4')">4</button>
+                    <button onclick="addToExpression('5')">5</button>
+                    <button onclick="addToExpression('6')">6</button>
+                    <button class="operator" onclick="addToExpression('-')">-</button>
+                    <button class="function" onclick="addToExpression('∫(')">∫</button>
+                    
+                    <button onclick="addToExpression('1')">1</button>
+                    <button onclick="addToExpression('2')">2</button>
+                    <button onclick="addToExpression('3')">3</button>
+                    <button class="operator" onclick="addToExpression('+')">+</button>
+                    <button class="function" onclick="addToExpression('∑(')">∑</button>
+                    
+                    <button onclick="addToExpression('0')">0</button>
+                    <button onclick="addToExpression('.')">.</button>
+                    <button class="equals" onclick="calculate()" colspan="2">=</button>
+                </div>
+            </div>
+            
+            <div class="integral-section">
+                <h2 class="section-title">Cálculo de Integrais</h2>
+                
+                <div class="input-group">
+                    <label for="integral-function">Função f(x):</label>
+                    <input type="text" id="integral-function" placeholder="ex: x^2, sin(x), e^x">
+                </div>
+                
+                <div class="input-group">
+                    <label for="integral-type">Tipo de Integral:</label>
+                    <select id="integral-type">
+                        <option value="definite">Integral Definida</option>
+                        <option value="double">Integral Dupla</option>
+                        <option value="triple">Integral Tripla</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label for="lower-limit">Limite Inferior (a):</label>
+                    <input type="text" id="lower-limit" placeholder="ex: 0, -1, π/2">
+                </div>
+                
+                <div class="input-group">
+                    <label for="upper-limit">Limite Superior (b):</label>
+                    <input type="text" id="upper-limit" placeholder="ex: 1, 2, 2π">
+                </div>
+                
+                <div id="double-integral-inputs" style="display: none;">
+                    <div class="input-group">
+                        <label for="lower-limit-y">Limite Inferior y (c):</label>
+                        <input type="text" id="lower-limit-y" placeholder="ex: 0, -1, π/2">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="upper-limit-y">Limite Superior y (d):</label>
+                        <input type="text" id="upper-limit-y" placeholder="ex: 1, 2, 2π">
+                    </div>
+                </div>
+                
+                <div id="triple-integral-inputs" style="display: none;">
+                    <div class="input-group">
+                        <label for="lower-limit-z">Limite Inferior z (e):</label>
+                        <input type="text" id="lower-limit-z" placeholder="ex: 0, -1, π/2">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="upper-limit-z">Limite Superior z (f):</label>
+                        <input type="text" id="upper-limit-z" placeholder="ex: 1, 2, 2π">
+                    </div>
+                </div>
+                
+                <button class="equals" onclick="calculateIntegral()" style="width: 100%; margin-top: 10px;">Calcular Integral</button>
+                
+                <div class="integral-result" id="integral-result">
+                    Resultado aparecerá aqui
+                </div>
+            </div>
+        </div>
+        
+        <div class="history">
+            <h2 class="section-title">Histórico de Cálculos</h2>
+            <div class="history-list" id="history-list">
+                <!-- Histórico será preenchido dinamicamente -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elementos da calculadora
+        const expressionElement = document.getElementById('expression');
+        const resultElement = document.getElementById('result');
+        const integralTypeSelect = document.getElementById('integral-type');
+        const doubleIntegralInputs = document.getElementById('double-integral-inputs');
+        const tripleIntegralInputs = document.getElementById('triple-integral-inputs');
+        const integralResultElement = document.getElementById('integral-result');
+        const historyListElement = document.getElementById('history-list');
+        
+        // Variáveis de estado
+        let currentExpression = '';
+        let history = [];
+        
+        // Funções da calculadora básica
+        function addToExpression(value) {
+            currentExpression += value;
+            updateDisplay();
+        }
+        
+        function clearAll() {
+            currentExpression = '';
+            updateDisplay();
+            resultElement.textContent = '0';
+        }
+        
+        function clearEntry() {
+            currentExpression = currentExpression.slice(0, -1);
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            expressionElement.textContent = currentExpression;
+        }
+        
+        function calculate() {
+            try {
+                // Substituir símbolos matemáticos para avaliação
+                let expressionToEval = currentExpression
+                    .replace(/π/g, Math.PI)
+                    .replace(/e/g, Math.E)
+                    .replace(/√/g, 'Math.sqrt')
+                    .replace(/sin/g, 'Math.sin')
+                    .replace(/cos/g, 'Math.cos')
+                    .replace(/tan/g, 'Math.tan')
+                    .replace(/log/g, 'Math.log10')
+                    .replace(/ln/g, 'Math.log')
+                    .replace(/abs/g, 'Math.abs')
+                    .replace(/\^/g, '**');
+                
+                // Avaliar a expressão
+                const result = eval(expressionToEval);
+                
+                // Atualizar o display
+                resultElement.textContent = result;
+                
+                // Adicionar ao histórico
+                addToHistory(currentExpression, result);
+                
+            } catch (error) {
+                resultElement.textContent = 'Erro';
+            }
+        }
+        
+        function addToHistory(expression, result) {
+            history.unshift({ expression, result });
+            
+            // Limitar o histórico a 10 itens
+            if (history.length > 10) {
+                history.pop();
+            }
+            
+            updateHistoryDisplay();
+        }
+        
+        function updateHistoryDisplay() {
+            historyListElement.innerHTML = '';
+            
+            history.forEach(item => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                historyItem.innerHTML = `
+                    <span class="history-expression">${item.expression}</span>
+                    <span class="history-result">= ${item.result}</span>
+                `;
+                historyListElement.appendChild(historyItem);
+            });
+        }
+        
+        // Controle de exibição dos campos de integrais múltiplas
+        integralTypeSelect.addEventListener('change', function() {
+            const type = this.value;
+            
+            // Esconder todos os campos extras primeiro
+            doubleIntegralInputs.style.display = 'none';
+            tripleIntegralInputs.style.display = 'none';
+            
+            // Mostrar os campos apropriados
+            if (type === 'double') {
+                doubleIntegralInputs.style.display = 'block';
+            } else if (type === 'triple') {
+                doubleIntegralInputs.style.display = 'block';
+                tripleIntegralInputs.style.display = 'block';
+            }
+        });
+        
+        // Função para calcular integrais
+        function calculateIntegral() {
+            const functionStr = document.getElementById('integral-function').value;
+            const integralType = document.getElementById('integral-type').value;
+            const a = parseFloat(document.getElementById('lower-limit').value);
+            const b = parseFloat(document.getElementById('upper-limit').value);
+            
+            let result;
+            
+            try {
+                if (integralType === 'definite') {
+                    result = numericalIntegration(functionStr, a, b);
+                    integralResultElement.textContent = `∫[${a}, ${b}] ${functionStr} dx ≈ ${result.toFixed(6)}`;
+                } else if (integralType === 'double') {
+                    const c = parseFloat(document.getElementById('lower-limit-y').value);
+                    const d = parseFloat(document.getElementById('upper-limit-y').value);
+                    result = doubleIntegral(functionStr, a, b, c, d);
+                    integralResultElement.textContent = `∬[${a}, ${b}]x[${c}, ${d}] ${functionStr} dxdy ≈ ${result.toFixed(6)}`;
+                } else if (integralType === 'triple') {
+                    const c = parseFloat(document.getElementById('lower-limit-y').value);
+                    const d = parseFloat(document.getElementById('upper-limit-y').value);
+                    const e = parseFloat(document.getElementById('lower-limit-z').value);
+                    const f = parseFloat(document.getElementById('upper-limit-z').value);
+                    result = tripleIntegral(functionStr, a, b, c, d, e, f);
+                    integralResultElement.textContent = `∭[${a}, ${b}]x[${c}, ${d}]x[${e}, ${f}] ${functionStr} dxdydz ≈ ${result.toFixed(6)}`;
+                }
+                
+                // Adicionar ao histórico
+                addToHistory(`Integral: ${functionStr}`, result);
+                
+            } catch (error) {
+                integralResultElement.textContent = 'Erro no cálculo da integral. Verifique os valores.';
+            }
+        }
+        
+        // Método de Simpson para integração numérica
+        function numericalIntegration(funcStr, a, b, n = 1000) {
+            const h = (b - a) / n;
+            let sum = evaluateFunction(funcStr, a) + evaluateFunction(funcStr, b);
+            
+            for (let i = 1; i < n; i++) {
+                const x = a + i * h;
+                const coefficient = (i % 2 === 0) ? 2 : 4;
+                sum += coefficient * evaluateFunction(funcStr, x);
+            }
+            
+            return sum * h / 3;
+        }
+        
+        // Integral dupla usando o método de Simpson
+        function doubleIntegral(funcStr, a, b, c, d, n = 50) {
+            const hx = (b - a) / n;
+            const hy = (d - c) / n;
+            let sum = 0;
+            
+            for (let i = 0; i <= n; i++) {
+                const x = a + i * hx;
+                const wx = (i === 0 || i === n) ? 1 : (i % 2 === 0) ? 2 : 4;
+                
+                for (let j = 0; j <= n; j++) {
+                    const y = c + j * hy;
+                    const wy = (j === 0 || j === n) ? 1 : (j % 2 === 0) ? 2 : 4;
+                    
+                    sum += wx * wy * evaluateFunction(funcStr, x, y);
+                }
+            }
+            
+            return sum * hx * hy / 9;
+        }
+        
+        // Integral tripla usando o método de Simpson
+        function tripleIntegral(funcStr, a, b, c, d, e, f, n = 20) {
+            const hx = (b - a) / n;
+            const hy = (d - c) / n;
+            const hz = (f - e) / n;
+            let sum = 0;
+            
+            for (let i = 0; i <= n; i++) {
+                const x = a + i * hx;
+                const wx = (i === 0 || i === n) ? 1 : (i % 2 === 0) ? 2 : 4;
+                
+                for (let j = 0; j <= n; j++) {
+                    const y = c + j * hy;
+                    const wy = (j === 0 || j === n) ? 1 : (j % 2 === 0) ? 2 : 4;
+                    
+                    for (let k = 0; k <= n; k++) {
+                        const z = e + k * hz;
+                        const wz = (k === 0 || k === n) ? 1 : (k % 2 === 0) ? 2 : 4;
+                        
+                        sum += wx * wy * wz * evaluateFunction(funcStr, x, y, z);
+                    }
+                }
+            }
+            
+            return sum * hx * hy * hz / 27;
+        }
+        
+        // Avaliar função matemática com uma ou mais variáveis
+        function evaluateFunction(funcStr, ...variables) {
+            let expression = funcStr;
+            
+            // Substituir variáveis
+            const varNames = ['x', 'y', 'z'];
+            variables.forEach((value, index) => {
+                if (index < varNames.length) {
+                    const regex = new RegExp(varNames[index], 'g');
+                    expression = expression.replace(regex, value);
+                }
+            });
+            
+            // Substituir símbolos matemáticos
+            expression = expression
+                .replace(/π/g, Math.PI)
+                .replace(/e/g, Math.E)
+                .replace(/√/g, 'Math.sqrt')
+                .replace(/sin/g, 'Math.sin')
+                .replace(/cos/g, 'Math.cos')
+                .replace(/tan/g, 'Math.tan')
+                .replace(/log/g, 'Math.log10')
+                .replace(/ln/g, 'Math.log')
+                .replace(/abs/g, 'Math.abs')
+                .replace(/\^/g, '**');
+            
+            // Avaliar a expressão
+            return eval(expression);
+        }
+    </script>
+</body>
+</html>
