@@ -172,7 +172,7 @@ class ModeloDemografiaJaponesa:
         # Componente determinístico
         determinístico = self.sistema_equacoes_diferenciais(t, y)
         
-        # Componente estocástico (processo de Wiener) - CORRIGIDO
+        # Componente estocástico (processo de Wiener)
         sigma_P = 0.008  # Volatilidade da população (menor)
         sigma_b = 0.003  # Volatilidade da fertilidade (menor)
         sigma_d = 0.002  # Volatilidade da mortalidade (menor)
@@ -256,7 +256,7 @@ class ModeloDemografiaJaponesa:
         return sol
 
 # =============================================================================
-# 3. ANÁLISE E VISUALIZAÇÃO (CORRIGIDA)
+# 3. ANÁLISE E VISUALIZAÇÃO 
 # =============================================================================
 
 class AnalisadorDemografia:
