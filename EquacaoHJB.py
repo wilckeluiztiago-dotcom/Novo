@@ -5,11 +5,11 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-# Configuração para evitar warnings
+
 import warnings
 warnings.filterwarnings('ignore')
 
-# Coletar dados da Bovespa - VERSÃO CORRIGIDA
+# Coletar dados da Bovespa 
 def carregar_dados_bovespa():
     tickers = ['PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'WEGE3.SA']
     
