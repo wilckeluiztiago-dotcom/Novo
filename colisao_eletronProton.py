@@ -80,7 +80,7 @@ class SistemaQuanticoEletronProton:
         }
 
     def funcao_onda_relativistica(self, momento, spin):
-        """Solução exata da equação de Dirac para onda plana - CORRIGIDA"""
+        """Solução exata da equação de Dirac para onda plana"""
         m = float(self.massa_eletron)
         c = float(self.velocidade_luz)
         p = float(momento)
