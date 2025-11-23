@@ -37,7 +37,6 @@ def calcular_parametros(returns):
     
     return mu.values, sigma.values, corr_matrix.values, cov_matrix.values
 
-# Função HJB para otimização - VERSÃO SIMPLIFICADA E FUNCIONAL
 class ModeloHJB:
     def __init__(self, mu, cov_matrix, risk_free=0.12):
         self.mu = mu
