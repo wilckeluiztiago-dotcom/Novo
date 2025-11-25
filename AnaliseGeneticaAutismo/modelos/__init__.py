@@ -1,0 +1,1 @@
+from .preditor import PreditorGeneticoIA
