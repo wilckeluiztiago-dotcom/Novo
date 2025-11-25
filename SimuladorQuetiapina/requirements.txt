@@ -1,0 +1,13 @@
+# Dependências do Simulador de Quetiapina
+# Autor: Luiz Tiago Wilcke
+
+# Core científico
+numpy>=1.24.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+
+# Interface web
+streamlit>=1.28.0
+
+# Utilitários
+dataclasses; python_version < '3.7'

@@ -1,0 +1,8 @@
+# PyTorch e dependências ML
+torch>=2.0.0
+torchvision>=0.15.0
+scikit-learn>=1.3.0
+pandas>=2.0.0
+
+# Dados sintéticos já inclusos no requirements anterior
+# numpy, scipy, matplotlib já estão
