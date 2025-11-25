@@ -1,0 +1,1 @@
+# Módulo do núcleo - inicialização

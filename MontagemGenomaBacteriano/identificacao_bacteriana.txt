@@ -1,0 +1,53 @@
+======================================================================
+IDENTIFICAÇÃO BACTERIANA BASEADA EM CARACTERÍSTICAS GENÔMICAS
+======================================================================
+
+Características do Genoma Montado:
+  • Tamanho estimado: 6,341 bp (0.01 Mb)
+  • Conteúdo GC médio: 47.1%
+
+Possíveis Candidatos (ordenados por similaridade):
+----------------------------------------------------------------------
+
+1. Vibrio cholerae (Score: 40.1%)
+   Descrição: Agente causador da cólera
+   Tamanho esperado: 4.0-4.1 Mb
+   GC esperado: 47-48%
+   Aplicações: Epidemiologia, saneamento
+   Patogenicidade: Altamente patogênica
+   ⚠️ Compatível em GC
+
+2. Escherichia coli (Score: 28.6%)
+   Descrição: Bactéria gram-negativa comum no intestino
+   Tamanho esperado: 4.5-5.5 Mb
+   GC esperado: 48-52%
+   Aplicações: Biotecnologia, produção de proteínas recombinantes
+   Patogenicidade: Algumas cepas são patogênicas
+
+3. Bacillus subtilis (Score: 27.5%)
+   Descrição: Bactéria gram-positiva formadora de esporos
+   Tamanho esperado: 4.0-4.3 Mb
+   GC esperado: 43-45%
+   Aplicações: Probióticos, produção de enzimas
+   Patogenicidade: Geralmente não patogênica
+
+4. Salmonella enterica (Score: 20.6%)
+   Descrição: Bactéria gram-negativa, causa salmonelose
+   Tamanho esperado: 4.5-5.0 Mb
+   GC esperado: 51-53%
+   Aplicações: Segurança alimentar, epidemiologia
+   Patogenicidade: Patogênica
+
+5. Streptococcus pneumoniae (Score: 9.6%)
+   Descrição: Bactéria gram-positiva, causa pneumonia
+   Tamanho esperado: 2.0-2.2 Mb
+   GC esperado: 38-41%
+   Aplicações: Pesquisa de vacinas
+   Patogenicidade: Patogênica
+
+======================================================================
+NOTA: Esta é uma identificação preliminar baseada apenas em
+características genômicas básicas. Para identificação precisa,
+utilize métodos de sequenciamento de genes marcadores (16S rRNA)
+ou análise filogenética completa.
+======================================================================
