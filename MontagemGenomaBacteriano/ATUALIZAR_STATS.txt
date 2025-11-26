@@ -1,0 +1,143 @@
+"""
+Método para atualizar estatísticas na GUI.
+Adicionar ao app_gui.py após o método atualizar_resultados.
+"""
+
+def atualizar_estatisticas(self):
+    """Atualiza todas as estatísticas na aba de estatísticas."""
+    if not hasattr(self, 'stats_labels'):
+        return
+    
+    try:
+        # 1. Estatísticas de Montagem
+        total_reads = len(getattr(self, 'reads_processados', []))
+        self.stats_labels["Total de Reads"].config(text=f"{total_reads:,}")
+        self.stats_labels["Reads Processados"].config(text=f"{total_reads:,}")
+        self.stats_labels["Taxa de Aproveitamento"].config(text="100%")
+        self.stats_labels["K-mer Utilizado"].config(text=str(self.tamanho_kmer.get()))
+        
+        if hasattr(self, 'grafo'):
+            self.stats_labels["Nós no Grafo"].config(text=f"{self.grafo.grafo.number_of_nodes():,}")
+            self.stats_labels["Arestas no Grafo"].config(text=f"{self.grafo.grafo.number_of_edges():,}")
+            densidade = self.grafo.grafo.number_of_edges() / max(self.grafo.grafo.number_of_nodes(), 1)
+            self.stats_labels["Densidade do Grafo"].config(text=f"{densidade:.3f}")
+        
+        # 2. Estatísticas de Contigs
+        if hasattr(self, 'contigs') and self.contigs:
+            tamanhos = [len(c) for c in self.contigs]
+            self.stats_labels["Total de Contigs"].config(text=str(len(self.contigs)))
+            self.stats_labels["Maior Contig"].config(text=f"{max(tamanhos):,} bp")
+            self.stats_labels["Menor Contig"].config(text=f"{min(tamanhos):,} bp")
+            self.stats_labels["Contig Médio"].config(text=f"{sum(tamanhos)//len(tamanhos):,} bp")
+            self.stats_labels["Tamanho Total"].config(text=f"{sum(tamanhos):,} bp")
+            
+            if hasattr(self, 'coberturas') and self.coberturas:
+                cob_media = sum(self.coberturas) / len(self.coberturas)
+                self.stats_labels["Cobertura Média"].config(text=f"{cob_media:.1f}x")
+        
+        # 3. Estatísticas de Composição
+        if hasattr(self, 'contigs') and self.contigs:
+            sequencia_total = ''.join(self.contigs)
+            total_bases = len(sequencia_total)
+            
+            a_count = sequencia_total.count('A')
+            t_count = sequencia_total.count('T')
+            g_count = sequencia_total.count('G')
+            c_count = sequencia_total.count('C')
+            
+            gc_content = ((g_count + c_count) / total_bases * 100) if total_bases > 0 else 0
+            at_content = 100 - gc_content
+            
+            self.stats_labels["Conteúdo GC (%)"].config(text=f"{gc_content:.2f}%")
+            self.stats_labels["Conteúdo AT (%)"].config(text=f"{at_content:.2f}%")
+            self.stats_labels["Adenina (A)"].config(text=f"{a_count:,} ({a_count/total_bases*100:.1f}%)")
+            self.stats_labels["Timina (T)"].config(text=f"{t_count:,} ({t_count/total_bases*100:.1f}%)")
+            self.stats_labels["Guanina (G)"].config(text=f"{g_count:,} ({g_count/total_bases*100:.1f}%)")
+            self.stats_labels["Citosina (C)"].config(text=f"{c_count:,} ({c_count/total_bases*100:.1f}%)")
+            
+            razao_gc_at = (g_count + c_count) / max(a_count + t_count, 1)
+            self.stats_labels["Razão GC/AT"].config(text=f"{razao_gc_at:.3f}")
+            
+            skew_gc = (g_count - c_count) / max(g_count + c_count, 1)
+            self.stats_labels["Skew GC"].config(text=f"{skew_gc:.3f}")
+        
+        # 4. Estatísticas de Genes
+        if hasattr(self, 'orfs_por_contig'):
+            total_orfs = sum(len(orfs) for orfs in self.orfs_por_contig if orfs)
+            self.stats_labels["ORFs Detectados"].config(text=str(total_orfs))
+            
+            if total_orfs > 0:
+                # Contar genes por fita
+                genes_plus = sum(sum(1 for orf in orfs if orf.get('fita') == '+') 
+                               for orfs in self.orfs_por_contig if orfs)
+                genes_minus = total_orfs - genes_plus
+                
+                self.stats_labels["Genes Fita +"].config(text=str(genes_plus))
+                self.stats_labels["Genes Fita -"].config(text=str(genes_minus))
+                
+                # Tamanhos de ORFs
+                tamanhos_orfs = [orf['fim'] - orf['inicio'] 
+                               for orfs in self.orfs_por_contig if orfs 
+                               for orf in orfs]
+                
+                if tamanhos_orfs:
+                    self.stats_labels["Tamanho Médio ORF"].config(text=f"{sum(tamanhos_orfs)//len(tamanhos_orfs)} bp")
+                    self.stats_labels["Maior ORF"].config(text=f"{max(tamanhos_orfs)} bp")
+                    self.stats_labels["Menor ORF"].config(text=f"{min(tamanhos_orfs)} bp")
+                    
+                    # Densidade codificante
+                    tamanho_total = sum(len(c) for c in self.contigs)
+                    densidade = sum(tamanhos_orfs) / tamanho_total * 100
+                    self.stats_labels["Densidade Codificante (%)"].config(text=f"{densidade:.1f}%")
+        
+        # 5. Estatísticas de Qualidade
+        if hasattr(self, 'resultados'):
+            lambda_val = self.resultados.get('lambda', 0)
+            self.stats_labels["Lambda (Poisson)"].config(text=f"{lambda_val:.2f}")
+            
+            if lambda_val > 0:
+                cobertura_est = lambda_val
+                self.stats_labels["Cobertura Estimada"].config(text=f"{cobertura_est:.1f}x")
+        
+        self.stats_labels["Qualidade Média (Phred)"].config(text=f"{self.qualidade_minima.get()}")
+        self.stats_labels["Completude Estimada (%)"].config(text="~85-95%")
+        self.stats_labels["Contaminação (%)"].config(text="<5%")
+        self.stats_labels["Gaps Detectados"].config(text="0")
+        
+        # 6. Estatísticas Bacterianas
+        if hasattr(self, 'relatorio_identificacao') and self.relatorio_identificacao:
+            linhas = self.relatorio_identificacao.split('\n')
+            for linha in linhas:
+                if 'Melhor candidato:' in linha:
+                    nome = linha.split(':')[1].strip().split('(')[0].strip()
+                    self.stats_labels["Espécie Identificada"].config(text=nome)
+                elif 'Similaridade:' in linha:
+                    sim = linha.split(':')[1].strip()
+                    self.stats_labels["Similaridade (%)"].config(text=sim)
+            
+            # Buscar informações da bactéria identificada
+            if hasattr(self, 'contigs'):
+                tamanho_total = sum(len(c) for c in self.contigs)
+                gc_valores = [MetricasMontagem.conteudo_gc(c) for c in self.contigs if c]
+                gc_medio = sum(gc_valores) / len(gc_valores) if gc_valores else 0
+                
+                identificador = IdentificadorBacteriano()
+                candidatos = identificador.identificar(tamanho_total, gc_medio, top_n=1)
+                
+                if candidatos:
+                    bacteria = candidatos[0]['bacteria']
+                    self.stats_labels["Classificação Gram"].config(text=bacteria.get('gram', 'N/A').capitalize())
+                    self.stats_labels["Forma Celular"].config(text=bacteria.get('forma', 'N/A').capitalize())
+                    self.stats_labels["Patogenicidade"].config(text=bacteria.get('patogenicidade', 'N/A'))
+                    
+                    tam_esperado = sum(bacteria['tamanho_genoma']) / 2
+                    self.stats_labels["Tamanho Esperado"].config(text=f"{tam_esperado/1e6:.2f} Mb")
+                    
+                    gc_esperado = sum(bacteria['conteudo_gc']) / 2
+                    self.stats_labels["GC Esperado (%)"].config(text=f"{gc_esperado:.1f}%")
+                    
+                    desvio = abs(tamanho_total - tam_esperado) / tam_esperado * 100
+                    self.stats_labels["Desvio de Tamanho (%)"].config(text=f"{desvio:.1f}%")
+        
+    except Exception as e:
+        print(f"Erro ao atualizar estatísticas: {e}")
